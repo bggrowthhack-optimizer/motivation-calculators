@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мотивация КЦ — Челны-Оптика</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/engine.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../assets/engine.js"></script>
+<script>
+(function () {
+  var fmtMoney = MotivationCalculator.util.fmtMoney;
+
+  // Ступени надбавки — одинаковые для обоих KPI: 50–69% / 70–84% / ≥85%.
+  var THRESHOLDS = [50, 70, 85];
+  var BONUS_BY_TIER = [0, 3000, 5000, 10000];
+
+  function tierOf(pct) {
+    return pct >= 85 ? 3 : pct >= 70 ? 2 : pct >= 50 ? 1 : 0;
+  }
+
+  function tierLabel(tier) {
+    return tier === 0 ? 'ниже порога' : 'порог ' + tier + ' (' + fmtMoney(BONUS_BY_TIER[tier]) + ')';
+  }
+
+  // Подсказка под слайдером: сколько п.п. осталось до следующего порога
+  // и на сколько вырастет надбавка именно за этот KPI, если его дотянуть.
+  function growthHint(pct) {
+    var tier = tierOf(pct);
+    if (tier === 3) {
+      return 'Максимальный порог по этому KPI уже взят — дальше расти по нему некуда, надбавка +' + fmtMoney(BONUS_BY_TIER[3]) + ' зафиксирована.';
+    }
+    var nextThreshold = THRESHOLDS[tier];
+    var gap = Math.max(nextThreshold - pct, 0.1);
+    var jump = BONUS_BY_TIER[tier + 1] - BONUS_BY_TIER[tier];
+    return 'До порога <span class="mono">' + nextThreshold + '%</span> осталось <span class="mono">' + gap.toFixed(1) + ' п.п.</span> → надбавка по этому KPI вырастет на <span class="mono">+' + fmtMoney(jump) + '/мес</span>';
+  }
+
+  MotivationCalculator.init({
+    title: 'Мотивация КЦ',
+    eyebrow: 'Челны-Оптика · мотивация колл-центра',
+    favicon: '🎧',
+    lede: 'Два независимых показателя, три уровня надбавок за каждый. Выстави свои реальные проценты за месяц, зафиксируй их — и смотри, сколько п.п. осталось до следующего порога и что он даёт.',
+    theme: { accent: '#1749A3', accentDark: '#4D8EF8' },
+    footnotes: [
+      '<strong>KPI 1 — обращение → запись:</strong> записей сделано ÷ квалифицированных обращений. Показывает, насколько оператор доводит разговор до записи на приём.',
+      '<strong>KPI 2 — доходимость:</strong> пришли на приём ÷ назначено на период. Показывает качество записи: правильная квалификация и подтверждения.',
+      'Пороги одинаковые для обоих KPI: 50–69% → +3 000 ₽, 70–84% → +5 000 ₽, ≥85% → +10 000 ₽. Каждый KPI даёт надбавку независимо от другого.',
+      'В реальной системе на первый месяц действует защита дохода: если расчёт по KPI даёт меньше прошлого заработка — доплата до прежней суммы. В этом калькуляторе не показана, чтобы не отвлекать от роста показателей.'
+    ],
+    roles: [
+      {
+        id: 'operator',
+        label: 'Оператор КЦ',
+        fields: [
+          {
+            id: 'salary', label: 'Оклад', unit: 'money', min: 20000, max: 100000, step: 1000, default: 50000
+          },
+          {
+            id: 'kpi1', label: 'KPI 1 — обращение → запись', unit: 'percent', min: 0, max: 100, step: 1, default: 45,
+            marginal: function (s) { return growthHint(s.kpi1); }
+          },
+          {
+            id: 'kpi2', label: 'KPI 2 — доходимость', unit: 'percent', min: 0, max: 100, step: 1, default: 55,
+            marginal: function (s) { return growthHint(s.kpi2); }
+          }
+        ],
+        compute: function (s) {
+          var t1 = tierOf(s.kpi1);
+          var t2 = tierOf(s.kpi2);
+          var bonus1 = BONUS_BY_TIER[t1];
+          var bonus2 = BONUS_BY_TIER[t2];
+          return {
+            rows: [
+              { label: 'Оклад', value: s.salary },
+              { label: 'Надбавка KPI 1 (' + tierLabel(t1) + ')', value: bonus1 },
+              { label: 'Надбавка KPI 2 (' + tierLabel(t2) + ')', value: bonus2 }
+            ],
+            total: s.salary + bonus1 + bonus2,
+            t1: t1, t2: t2
+          };
+        },
+        tip: function (c, s) {
+          if (c.t1 === 3 && c.t2 === 3) {
+            return '<strong>Оба KPI на максимальном пороге.</strong> Дальше — удерживать результат, расти по этим показателям уже некуда.';
+          }
+          // Показываем KPI с наименьшим разрывом до следующего порога — туда быстрее всего дотянуться.
+          var gap1 = c.t1 < 3 ? THRESHOLDS[c.t1] - s.kpi1 : Infinity;
+          var gap2 = c.t2 < 3 ? THRESHOLDS[c.t2] - s.kpi2 : Infinity;
+          var focus = gap1 <= gap2 ? 1 : 2;
+          var gap = focus === 1 ? gap1 : gap2;
+          var tier = focus === 1 ? c.t1 : c.t2;
+          var jump = BONUS_BY_TIER[tier + 1] - BONUS_BY_TIER[tier];
+          return '<strong>Быстрее всего вырасти через KPI ' + focus + '</strong> — до следующего порога всего ' + Math.max(gap, 0.1).toFixed(1) + ' п.п., это +' + fmtMoney(jump) + '/мес.';
+        }
+      }
+    ]
+  });
+})();
+</script>
+</body>
+</html>

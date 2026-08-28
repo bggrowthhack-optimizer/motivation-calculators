@@ -23,8 +23,14 @@
  *       fields: [
  *         { id: 'days', label: '...', unit: 'count'|'money'|'percent',
  *           min, max, step, default,
- *           marginalLabel: '...',            // необязательно
- *           marginal: (state) => number      // необязательно, ₽/мес за +1 шаг
+ *           marginalLabel: '...',            // необязательно, нужен только если marginal возвращает число
+ *           // необязательно — подсказка "за счёт чего вырасти" под слайдером:
+ *           //  - вернуть number → рендерится как "{marginalLabel} ≈ +{число} ₽/мес"
+ *           //    (годится для линейных формул: ставка × количество)
+ *           //  - вернуть string (html) → рендерится как есть, marginalLabel игнорируется
+ *           //    (нужен для ступенчатых/пороговых формул — сам опиши, сколько
+ *           //    осталось до следующего порога и какой будет прибавка)
+ *           marginal: (state) => number | string
  *         },
  *         ...
  *       ],
@@ -37,6 +43,7 @@
  *     ...
  *   ]
  * }
+ * Если ролей всего одна — переключатель ролей скрывается автоматически.
  */
 (function (global) {
   function fmtMoney(n) {
@@ -202,7 +209,13 @@
         fillPct(slot.input);
         if (slot.margEl && field.marginal) {
           var m = field.marginal(s);
-          slot.margEl.innerHTML = (field.marginalLabel || 'Изменение') + ' ≈ <span class="mono">+' + fmtMoney(m) + '/мес</span>';
+          if (typeof m === 'number') {
+            // Простой случай: линейная ценность шага (годится для формул вида "ставка × количество").
+            slot.margEl.innerHTML = (field.marginalLabel || 'Изменение') + ' ≈ <span class="mono">+' + fmtMoney(m) + '/мес</span>';
+          } else {
+            // Формула сложнее линейной (ступени, пороги и т.п.) — клиент сам строит готовую HTML-подсказку.
+            slot.margEl.innerHTML = m;
+          }
         }
       });
 
@@ -266,6 +279,8 @@
       });
       render();
     });
+
+    if (config.roles.length < 2) roleSwitch.hidden = true;
 
     app.appendChild(el('div', { class: 'app' }, [
       hero,
