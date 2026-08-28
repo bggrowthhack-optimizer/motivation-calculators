@@ -56,6 +56,11 @@
 
 * { box-sizing: border-box; }
 
+/* Многие компоненты ниже задают свой display (flex/inline-flex) — без этого
+   правила [hidden] перестаёт скрывать их, т.к. авторский display побеждает
+   display:none из UA-стиля для [hidden] при равной специфичности. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--ground);
