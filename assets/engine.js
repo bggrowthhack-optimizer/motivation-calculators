@@ -59,8 +59,14 @@
   function applyTheme(theme) {
     if (!theme) return;
     var root = document.documentElement;
-    if (theme.accent) root.style.setProperty('--accent', theme.accent);
-    if (theme.accentDark) root.style.setProperty('--accent-dark', theme.accentDark);
+    if (theme.accent) root.style.setProperty('--primary', theme.accent);
+    if (theme.accentDark) root.style.setProperty('--primary-dark', theme.accentDark);
+  }
+
+  function unitSuffix(field) {
+    if (field.unit === 'money') return '₽';
+    if (field.unit === 'percent') return '%';
+    return '';
   }
 
   function setFavicon(emoji) {
@@ -141,30 +147,66 @@
       sliders[role.id] = {};
 
       role.fields.forEach(function (field) {
-        var valueEl = el('span', { class: 'value mono' });
-        var head = el('div', { class: 'field-head' }, [
-          el('label', { for: 'f-' + role.id + '-' + field.id, text: field.label }),
-          valueEl
+        var fieldId = 'f-' + role.id + '-' + field.id;
+        var suffix = unitSuffix(field);
+        // Ползунок — для быстрого исследования "что если"; число рядом — для
+        // точного ввода реальных данных (например, из отчёта AMO/iTigris).
+        // Оба управляют одним и тем же state и обновляют друг друга.
+        var numberInput = el('input', {
+          type: 'number',
+          class: 'value-input mono' + (suffix ? ' has-unit' : ''),
+          id: fieldId,
+          min: field.min,
+          max: field.max,
+          step: field.step,
+          value: field.default,
+          inputmode: 'decimal'
+        });
+        var valueWrap = el('div', { class: 'value-input-wrap' }, [
+          numberInput,
+          suffix ? el('span', { class: 'value-unit', text: suffix }) : null
         ]);
-        var input = el('input', {
+        var head = el('div', { class: 'field-head' }, [
+          el('label', { for: fieldId, text: field.label }),
+          valueWrap
+        ]);
+        var rangeInput = el('input', {
           type: 'range',
-          id: 'f-' + role.id + '-' + field.id,
+          'aria-label': field.label,
           min: field.min,
           max: field.max,
           step: field.step,
           value: field.default
         });
         var margEl = null;
-        var fieldWrap = el('div', { class: 'field' }, [head, input]);
+        var fieldWrap = el('div', { class: 'field' }, [head, rangeInput]);
         if (field.marginal) {
           margEl = el('p', { class: 'marginal' });
           fieldWrap.appendChild(margEl);
         }
         panel.appendChild(fieldWrap);
-        sliders[role.id][field.id] = { input: input, valueEl: valueEl, margEl: margEl, field: field };
+        sliders[role.id][field.id] = { input: rangeInput, numberInput: numberInput, margEl: margEl, field: field };
 
-        input.addEventListener('input', function () {
-          state[role.id][field.id] = Number(input.value);
+        rangeInput.addEventListener('input', function () {
+          state[role.id][field.id] = Number(rangeInput.value);
+          render();
+        });
+
+        // Во время печати не насильно переформатируем и не клэмпим — иначе
+        // курсор скачет и цифры "поедают" друг друга на каждое нажатие клавиши.
+        numberInput.addEventListener('input', function () {
+          var v = parseFloat(numberInput.value);
+          if (!isNaN(v)) {
+            state[role.id][field.id] = v;
+            render();
+          }
+        });
+        // Клэмп в границы поля — только когда сотрудник закончил ввод (ушёл с поля).
+        numberInput.addEventListener('blur', function () {
+          var v = parseFloat(numberInput.value);
+          if (isNaN(v)) v = field.default;
+          v = Math.min(field.max, Math.max(field.min, v));
+          state[role.id][field.id] = v;
           render();
         });
       });
@@ -205,7 +247,12 @@
 
       role.fields.forEach(function (field) {
         var slot = sliders[role.id][field.id];
-        slot.valueEl.innerHTML = formatFieldValue(field, s[field.id]);
+        slot.input.value = s[field.id];
+        // Не трогаем значение поля, пока в нём печатают — иначе на каждое
+        // нажатие клавиши курсор прыгает в конец и цифры вводятся не туда.
+        if (document.activeElement !== slot.numberInput) {
+          slot.numberInput.value = s[field.id];
+        }
         fillPct(slot.input);
         if (slot.margEl && field.marginal) {
           var m = field.marginal(s);

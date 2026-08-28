@@ -1,57 +1,85 @@
 /* Общий "движок" калькуляторов мотивации — вёрстка, слайдеры, дельта, подсказки.
-   Формулы и конфигурация — за пределами этого файла, в client.js каждого клиента. */
+   Формулы и конфигурация — за пределами этого файла, в client.js каждого клиента.
+
+   Токены цвета/радиуса/тени скопированы из дизайн-системы Оптимайзера
+   (optics_summary/frontend/src/styles/design-tokens.css), чтобы калькулятор
+   выглядел как часть того же продукта, а не отдельная поделка:
+   OKLCH-палитра, Inter, приглушённые границы, парные статусные цвета
+   (заливка *-й и текст *-text — насыщенный жёлтый/зелёный не даёт AA-контраст
+   как текст на белом, поэтому у read-only текста своя, более тёмная версия). */
 
 :root {
-  --ground: #F4F7F7;
-  --surface: #FFFFFF;
-  --surface-2: #E9F0F0;
-  --ink: #142027;
-  --ink-muted: #5A6B71;
-  --line: #D2DEDE;
-  --accent: #0E7C82;
-  --accent-ink: #FFFFFF;
-  --accent-soft: #DEEFEF;
-  --positive: #2E8B57;
-  --positive-soft: #E3F3EA;
-  --negative: #B5473A;
-  --negative-soft: #FBEAE7;
-  --shadow: 0 1px 2px rgba(20, 32, 39, 0.06), 0 8px 24px rgba(20, 32, 39, 0.06);
+  --background: oklch(0.975 0.004 264);
+  --foreground: oklch(0.18 0.02 264);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.97 0.006 264);
+  --muted-foreground: oklch(0.52 0.015 264);
+  --border: oklch(0.90 0.010 264);
+  --primary: oklch(0.55 0.22 264);
+  --primary-dark: oklch(0.65 0.22 264); /* используется только в тёмной теме, если клиент не задал свой accentDark */
+  --primary-foreground: oklch(0.99 0.002 264);
+
+  --excellent: oklch(0.62 0.18 150);
+  --excellent-text: oklch(0.54 0.18 150);
+  --good: oklch(0.75 0.16 70);
+  --good-text: oklch(0.57 0.16 70);
+  --poor: oklch(0.58 0.22 25);
+  --poor-text: oklch(0.58 0.22 25);
+  --info: oklch(0.62 0.16 230);
+  --info-text: oklch(0.545 0.16 230);
+
+  --radius-lg: 0.75rem;  /* поля, кнопки, слайдер */
+  --radius-xl: 1rem;     /* карточки */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ground: #0D1417;
-    --surface: #141D21;
-    --surface-2: #1A252A;
-    --ink: #E7EEF0;
-    --ink-muted: #8FA3A8;
-    --line: #263338;
-    --accent: var(--accent-dark, #3FD0C9);
-    --accent-ink: #072423;
-    --accent-soft: #172C2C;
-    --positive: #59CB8D;
-    --positive-soft: #16302380;
-    --negative: #E58572;
-    --negative-soft: #351f1c;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+    --background: oklch(0.12 0.02 264);
+    --foreground: oklch(0.96 0.003 264);
+    --card: oklch(0.175 0.018 264);
+    --muted: oklch(0.20 0.018 264);
+    --muted-foreground: oklch(0.68 0.015 264);
+    --border: oklch(0.30 0.016 264);
+    --primary: var(--primary-dark);
+    --primary-foreground: oklch(0.12 0.02 264);
+
+    --excellent: oklch(0.68 0.18 150);
+    --excellent-text: var(--excellent);
+    --good: oklch(0.75 0.18 70);
+    --good-text: var(--good);
+    --poor: oklch(0.62 0.20 25);
+    --poor-text: var(--poor);
+    --info: oklch(0.68 0.18 230);
+    --info-text: var(--info);
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.40);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.50);
   }
 }
 
 :root[data-theme="dark"] {
-  --ground: #0D1417;
-  --surface: #141D21;
-  --surface-2: #1A252A;
-  --ink: #E7EEF0;
-  --ink-muted: #8FA3A8;
-  --line: #263338;
-  --accent: var(--accent-dark, #3FD0C9);
-  --accent-ink: #072423;
-  --accent-soft: #172C2C;
-  --positive: #59CB8D;
-  --positive-soft: #16302380;
-  --negative: #E58572;
-  --negative-soft: #351f1c;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+  --background: oklch(0.12 0.02 264);
+  --foreground: oklch(0.96 0.003 264);
+  --card: oklch(0.175 0.018 264);
+  --muted: oklch(0.20 0.018 264);
+  --muted-foreground: oklch(0.68 0.015 264);
+  --border: oklch(0.30 0.016 264);
+  --primary: var(--primary-dark);
+  --primary-foreground: oklch(0.12 0.02 264);
+
+  --excellent: oklch(0.68 0.18 150);
+  --excellent-text: var(--excellent);
+  --good: oklch(0.75 0.18 70);
+  --good-text: var(--good);
+  --poor: oklch(0.62 0.20 25);
+  --poor-text: var(--poor);
+  --info: oklch(0.68 0.18 230);
+  --info-text: var(--info);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.40);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.50);
 }
 
 * { box-sizing: border-box; }
@@ -63,57 +91,53 @@
 
 body {
   margin: 0;
-  background: var(--ground);
-  color: var(--ink);
-  font-family: "Libre Franklin", system-ui, -apple-system, "Segoe UI", sans-serif;
-  line-height: 1.45;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
 .mono {
-  font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   font-variant-numeric: tabular-nums;
 }
-
-a { color: var(--accent); }
 
 .app {
   max-width: 920px;
   margin: 0 auto;
-  padding: 28px 20px 56px;
+  padding: 32px 20px 56px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
 }
 
-.hero { display: flex; flex-direction: column; gap: 8px; }
+.hero { display: flex; flex-direction: column; gap: 6px; }
 
 .eyebrow {
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(26px, 4.4vw, 34px);
-  font-weight: 800;
+  font-size: 1.5rem; /* text-2xl — как заголовок страницы в Оптимайзере */
+  font-weight: 600;
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
 
-.lede { margin: 0; max-width: 60ch; color: var(--ink-muted); font-size: 15px; }
+.lede { margin: 0; max-width: 62ch; color: var(--muted-foreground); font-size: 0.875rem; }
 
 .role-switch {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 4px;
   gap: 4px;
 }
@@ -122,22 +146,22 @@ h1 {
   appearance: none;
   border: none;
   background: transparent;
-  color: var(--ink-muted);
+  color: var(--muted-foreground);
   font: inherit;
-  font-weight: 600;
-  font-size: 14px;
-  padding: 10px 12px;
-  border-radius: 9px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 9px 12px;
+  border-radius: calc(var(--radius-lg) - 4px);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.role-btn.active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.role-btn.active { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-sm); }
 
 .role-btn:focus-visible,
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -149,26 +173,64 @@ input:focus-visible {
 }
 
 .inputs {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 22px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
 }
 
 .field-head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   margin-bottom: 8px;
 }
 
-.field-head label { font-size: 13.5px; font-weight: 600; color: var(--ink); }
-.field-head .value { font-size: 15px; font-weight: 600; color: var(--accent); }
+.field-head label { font-size: 0.8125rem; font-weight: 500; color: var(--foreground); }
+
+/* Значение показателя — не просто текст, а редактируемое поле: сотрудник может
+   и тащить слайдер, и вписать точное число (например, из отчёта iTigris/AMO). */
+.value-input-wrap { position: relative; flex-shrink: 0; }
+.value-input {
+  width: 108px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  -moz-appearance: textfield;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.value-input::-webkit-outer-spin-button,
+.value-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.value-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 20%, transparent);
+}
+.value-input.has-unit { padding-right: 28px; }
+.value-unit {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
 
 input[type="range"] {
   -webkit-appearance: none;
@@ -176,128 +238,137 @@ input[type="range"] {
   width: 100%;
   height: 6px;
   border-radius: 999px;
-  background: linear-gradient(to right, var(--accent) var(--fill, 50%), var(--surface-2) var(--fill, 50%));
-  border: 1px solid var(--line);
+  background: linear-gradient(to right, var(--primary) var(--fill, 50%), var(--muted) var(--fill, 50%));
+  border: 1px solid var(--border);
   cursor: pointer;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: var(--accent);
-  border: 3px solid var(--surface);
-  box-shadow: 0 0 0 1px var(--accent), 0 2px 6px rgba(0,0,0,0.25);
+  background: var(--primary);
+  border: 3px solid var(--card);
+  box-shadow: 0 0 0 1px var(--primary), 0 1px 3px rgba(0,0,0,.2);
   cursor: pointer;
   margin-top: -1px;
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  background: var(--accent);
-  border: 3px solid var(--surface);
-  box-shadow: 0 0 0 1px var(--accent);
+  background: var(--primary);
+  border: 3px solid var(--card);
+  box-shadow: 0 0 0 1px var(--primary);
   cursor: pointer;
 }
 
 input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: transparent; }
 
-.marginal { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-muted); }
-.marginal .mono { color: var(--ink); font-weight: 500; }
+.marginal { margin: 8px 0 0; font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.5; }
+.marginal .mono { color: var(--foreground); font-weight: 500; }
 
 .result-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
 }
 
 .result-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 14px;
-  color: var(--ink-muted);
+  gap: 12px;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
 }
 
-.result-row .mono { color: var(--ink); font-size: 15px; }
+.result-row .mono { color: var(--foreground); font-size: 0.9375rem; font-weight: 500; }
 
 .result-total {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   padding-top: 12px;
-  border-top: 1px dashed var(--line);
+  border-top: 1px solid var(--border);
 }
 
 .result-total .label {
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
 }
 
-.result-total .mono { font-size: 26px; font-weight: 600; }
+.result-total .mono { font-size: 1.5rem; font-weight: 600; }
 
 .delta-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   align-self: flex-start;
-  padding: 6px 12px;
+  padding: 4px 12px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
-.delta-pill.positive { background: var(--positive-soft); color: var(--positive); }
-.delta-pill.negative { background: var(--negative-soft); color: var(--negative); }
-.delta-pill.neutral { background: var(--surface-2); color: var(--ink-muted); }
+/* Заливка 10% от статусного цвета + текстовый вариант с AA-контрастом —
+   тот же паттерн, что у Badge/text-excellent в Оптимайзере. */
+.delta-pill.positive { background: color-mix(in oklab, var(--excellent) 12%, var(--card)); color: var(--excellent-text); }
+.delta-pill.negative { background: color-mix(in oklab, var(--poor) 12%, var(--card)); color: var(--poor-text); }
+.delta-pill.neutral { background: var(--muted); color: var(--muted-foreground); }
 
 .tip {
   margin: 0;
-  font-size: 13px;
-  color: var(--ink-muted);
-  background: var(--accent-soft);
-  border-radius: 10px;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--info) 10%, var(--card));
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
+  line-height: 1.5;
 }
 
-.tip strong { color: var(--ink); }
+.tip strong { color: var(--foreground); }
 
 .baseline-controls { display: flex; gap: 8px; }
 
 .baseline-controls button {
   flex: 1;
   font: inherit;
-  font-weight: 600;
-  font-size: 13px;
-  padding: 10px 12px;
-  border-radius: 10px;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  height: 38px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  transition: transform 0.1s ease;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  transition: box-shadow 0.15s ease, background 0.15s ease, transform 0.1s ease;
 }
 
-.baseline-controls button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.baseline-controls button.primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.baseline-controls button.primary:hover { box-shadow: var(--shadow-md); }
 .baseline-controls button:active { transform: scale(0.98); }
 .baseline-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.baseline-note { margin: 0; font-size: 12px; color: var(--ink-muted); }
-.baseline-note .mono { color: var(--ink); }
+.baseline-note { margin: 0; font-size: 0.75rem; color: var(--muted-foreground); }
+.baseline-note .mono { color: var(--foreground); }
 
-footer.formula { font-size: 12px; color: var(--ink-muted); border-top: 1px solid var(--line); padding-top: 14px; }
+footer.formula { font-size: 0.75rem; color: var(--muted-foreground); border-top: 1px solid var(--border); padding-top: 16px; line-height: 1.6; }
 footer.formula p { margin: 4px 0; }
+footer.formula strong { color: var(--foreground); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
