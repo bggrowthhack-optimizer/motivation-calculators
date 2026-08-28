@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мотивация ЯКТ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/engine.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../assets/engine.js"></script>
+<script>
+  MotivationCalculator.init({
+    title: 'Калькулятор зарплаты',
+    eyebrow: 'ЯКТ · мотивация персонала',
+    favicon: '👓',
+    lede: 'Задай свои реальные показатели, зафиксируй их как точку отсчёта — а дальше двигай ползунки и смотри, на сколько вырастет зарплата и что для этого выгоднее всего менять.',
+    theme: { accent: '#0E7C82', accentDark: '#3FD0C9' },
+    footnotes: [
+      '<strong>Оптометрист:</strong> 3 000 ₽/день оклад + 5% от суммы ВТЛ-заказов (линза + работа мастера), считается по итогам месяца.',
+      '<strong>Консультант:</strong> 2 500 ₽/день оклад + 4,5% от личной выручки, считается по итогам месяца.'
+    ],
+    roles: [
+      {
+        id: 'optometrist',
+        label: 'Оптометрист',
+        fields: [
+          { id: 'days', label: 'Рабочих дней в месяце', unit: 'count', min: 15, max: 31, step: 1, default: 22,
+            marginalLabel: 'Каждый рабочий день', marginal: function () { return 3000; } },
+          { id: 'orders', label: 'Закрыто ВТЛ-заказов за месяц', unit: 'count', min: 0, max: 60, step: 1, default: 10,
+            marginalLabel: 'Каждый доп. ВТЛ-заказ', marginal: function (s) { return s.check * 0.05; } },
+          { id: 'check', label: 'Средний чек ВТЛ-заказа (линза + работа мастера)', unit: 'money', min: 3000, max: 15000, step: 250, default: 8000,
+            marginalLabel: 'Рост чека на 500 ₽ по всем заказам', marginal: function (s) { return s.orders * 500 * 0.05; } }
+        ],
+        compute: function (s) {
+          var base = s.days * 3000;
+          var bonus = s.orders * s.check * 0.05;
+          return { rows: [{ label: 'Оклад', value: base }, { label: 'Бонус', value: bonus }], total: base + bonus, bonusShare: (base + bonus) > 0 ? bonus / (base + bonus) : 0 };
+        },
+        tip: function (c) {
+          var pct = Math.round(c.bonusShare * 100);
+          if (c.bonusShare < 0.12) return '<strong>Бонус пока даёт всего ' + pct + '% дохода.</strong> Рост доли ВТЛ поднимает зарплату быстрее, чем кажется на первый взгляд.';
+          if (c.bonusShare < 0.35) return 'Бонус уже даёт <strong>' + pct + '%</strong> дохода — это твой главный рычаг роста зарплаты.';
+          return '<strong>' + pct + '%</strong> дохода — уже бонус. Ты близко к максимуму того, что даёт эта модель.';
+        }
+      },
+      {
+        id: 'consultant',
+        label: 'Консультант',
+        fields: [
+          { id: 'days', label: 'Рабочих дней в месяце', unit: 'count', min: 15, max: 31, step: 1, default: 22,
+            marginalLabel: 'Каждый рабочий день', marginal: function () { return 2500; } },
+          { id: 'revenue', label: 'Личная выручка за месяц', unit: 'money', min: 0, max: 500000, step: 5000, default: 150000,
+            marginalLabel: 'Каждые +10 000 ₽ выручки', marginal: function () { return 10000 * 0.045; } }
+        ],
+        compute: function (s) {
+          var base = s.days * 2500;
+          var bonus = s.revenue * 0.045;
+          return { rows: [{ label: 'Оклад', value: base }, { label: 'Бонус', value: bonus }], total: base + bonus, bonusShare: (base + bonus) > 0 ? bonus / (base + bonus) : 0 };
+        },
+        tip: function (c) {
+          var pct = Math.round(c.bonusShare * 100);
+          if (c.bonusShare < 0.12) return '<strong>Бонус пока даёт всего ' + pct + '% дохода.</strong> Рост личной выручки поднимает зарплату быстрее, чем кажется на первый взгляд.';
+          if (c.bonusShare < 0.35) return 'Бонус уже даёт <strong>' + pct + '%</strong> дохода — это твой главный рычаг роста зарплаты.';
+          return '<strong>' + pct + '%</strong> дохода — уже бонус. Ты близко к максимуму того, что даёт эта модель.';
+        }
+      }
+    ]
+  });
+</script>
+</body>
+</html>
