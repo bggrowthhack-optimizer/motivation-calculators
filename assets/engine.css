@@ -184,15 +184,26 @@ input:focus-visible {
   transition: box-shadow 0.2s ease;
 }
 
-.field-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+/* Подпись — всегда отдельной строкой сверху, независимо от длины (как
+   Label над Input у Оптимайзера). Строка со слайдером и числом всегда стоит
+   на том же месте у всех полей — раньше, когда подпись была рядом со
+   значением, длинный текст переносился на две строки и сдвигал поле вниз
+   только у этого показателя, вся колонка выглядела неровной. */
+.field-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--foreground);
+  margin-bottom: 10px;
 }
 
-.field-head label { font-size: 0.8125rem; font-weight: 500; color: var(--foreground); }
+.field-control {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.field-control input[type="range"] { flex: 1; min-width: 0; }
 
 /* Значение показателя — не просто текст, а редактируемое поле: сотрудник может
    и тащить слайдер, и вписать точное число (например, из отчёта iTigris/AMO). */
@@ -289,6 +300,13 @@ input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; backg
   font-size: 0.875rem;
   color: var(--muted-foreground);
 }
+
+/* Подпись может быть длинной и переноситься на две строки (например,
+   "Надбавка KPI 2 (порог 1 (3 000 ₽))") — но само число переноситься не
+   должно никогда: разорванное посередине "3 000" / "₽" выглядит как баг,
+   а не как перенос текста. */
+.result-row > span:first-child { flex: 1 1 auto; min-width: 0; }
+.result-row > span:last-child { flex: 0 0 auto; white-space: nowrap; }
 
 .result-row .mono { color: var(--foreground); font-size: 0.9375rem; font-weight: 500; }
 

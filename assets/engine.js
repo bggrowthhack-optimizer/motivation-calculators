@@ -69,6 +69,21 @@
     return '';
   }
 
+  // Разделитель разрядов как у чисел в остальном интерфейсе (ru-RU,
+  // "8 000" вместо "8000") — иначе редактируемое поле и итоговая карточка
+  // показывают одно и то же число по-разному оформленным.
+  function formatGrouped(n) {
+    return Number(n).toLocaleString('ru-RU');
+  }
+
+  // Убирает пробелы-разделители (обычный и неразрывный) перед разбором —
+  // без этого "8 000", введённое или подставленное самим полем, читалось бы как 8.
+  function parseGroupedNumber(raw) {
+    var cleaned = String(raw).replace(/[\s ]/g, '').replace(',', '.');
+    var v = parseFloat(cleaned);
+    return isNaN(v) ? null : v;
+  }
+
   function setFavicon(emoji) {
     if (!emoji) return;
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
@@ -152,23 +167,19 @@
         // Ползунок — для быстрого исследования "что если"; число рядом — для
         // точного ввода реальных данных (например, из отчёта AMO/iTigris).
         // Оба управляют одним и тем же state и обновляют друг друга.
+        // Число — как текст, не type=number: так можно показывать "8 000" с
+        // разделителем разрядов, как в остальном интерфейсе (карточка итога),
+        // а не голое "8000". Разбор значения — вручную, через parseFloat.
         var numberInput = el('input', {
-          type: 'number',
+          type: 'text',
+          inputmode: 'decimal',
           class: 'value-input mono' + (suffix ? ' has-unit' : ''),
           id: fieldId,
-          min: field.min,
-          max: field.max,
-          step: field.step,
-          value: field.default,
-          inputmode: 'decimal'
+          value: field.default
         });
         var valueWrap = el('div', { class: 'value-input-wrap' }, [
           numberInput,
           suffix ? el('span', { class: 'value-unit', text: suffix }) : null
-        ]);
-        var head = el('div', { class: 'field-head' }, [
-          el('label', { for: fieldId, text: field.label }),
-          valueWrap
         ]);
         var rangeInput = el('input', {
           type: 'range',
@@ -178,8 +189,15 @@
           step: field.step,
           value: field.default
         });
+        // Подпись всегда на отдельной строке сверху (как Label над Input у
+        // Оптимайзера) — так число со слайдером стоят на одном месте у всех
+        // полей независимо от длины подписи. Раньше при переносе длинной
+        // подписи на две строки поле съезжало вниз и "плавало" относительно
+        // однострочных полей.
+        var label = el('label', { for: fieldId, text: field.label, class: 'field-label' });
+        var control = el('div', { class: 'field-control' }, [valueWrap, rangeInput]);
         var margEl = null;
-        var fieldWrap = el('div', { class: 'field' }, [head, rangeInput]);
+        var fieldWrap = el('div', { class: 'field' }, [label, control]);
         if (field.marginal) {
           margEl = el('p', { class: 'marginal' });
           fieldWrap.appendChild(margEl);
@@ -192,19 +210,26 @@
           render();
         });
 
+        // При входе в поле показываем "сырое" число без разделителей —
+        // редактировать "8 000" неудобно, пробел не разберёшь, где курсор.
+        numberInput.addEventListener('focus', function () {
+          numberInput.value = String(state[role.id][field.id]);
+          numberInput.select();
+        });
         // Во время печати не насильно переформатируем и не клэмпим — иначе
         // курсор скачет и цифры "поедают" друг друга на каждое нажатие клавиши.
         numberInput.addEventListener('input', function () {
-          var v = parseFloat(numberInput.value);
-          if (!isNaN(v)) {
+          var v = parseGroupedNumber(numberInput.value);
+          if (v !== null) {
             state[role.id][field.id] = v;
             render();
           }
         });
-        // Клэмп в границы поля — только когда сотрудник закончил ввод (ушёл с поля).
+        // Клэмп в границы поля и возврат разделителей разрядов — только когда
+        // сотрудник закончил ввод (ушёл с поля).
         numberInput.addEventListener('blur', function () {
-          var v = parseFloat(numberInput.value);
-          if (isNaN(v)) v = field.default;
+          var v = parseGroupedNumber(numberInput.value);
+          if (v === null) v = field.default;
           v = Math.min(field.max, Math.max(field.min, v));
           state[role.id][field.id] = v;
           render();
@@ -251,7 +276,7 @@
         // Не трогаем значение поля, пока в нём печатают — иначе на каждое
         // нажатие клавиши курсор прыгает в конец и цифры вводятся не туда.
         if (document.activeElement !== slot.numberInput) {
-          slot.numberInput.value = s[field.id];
+          slot.numberInput.value = formatGrouped(s[field.id]);
         }
         fillPct(slot.input);
         if (slot.margEl && field.marginal) {
