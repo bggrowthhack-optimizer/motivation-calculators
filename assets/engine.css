@@ -168,7 +168,9 @@ input:focus-visible {
 .panel-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
 
 @media (min-width: 860px) {
-  .panel-grid { grid-template-columns: 1.25fr 1fr; align-items: start; }
+  /* Раньше было 1.25fr:1fr — карточка ввода заметно шире карточки итога,
+     пара выглядела как "два разных блока", а не единая раскладка. */
+  .panel-grid { grid-template-columns: 1fr 1fr; align-items: start; }
   .result-card { position: sticky; top: 20px; }
 }
 
@@ -355,14 +357,18 @@ input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; backg
 
 .tip strong { color: var(--foreground); }
 
-.baseline-controls { display: flex; gap: 8px; }
+/* flex-wrap — запасной вариант для очень узких экранов: если обеим кнопкам
+   не хватает места даже в одну строку, вторая уходит на новую строку целиком,
+   а не переносит текст посередине слова. */
+.baseline-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .baseline-controls button {
-  flex: 1;
   font: inherit;
   font-weight: 500;
   font-size: 0.8125rem;
+  white-space: nowrap;
   height: 38px;
+  padding: 0 16px;
   border-radius: var(--radius-lg);
   cursor: pointer;
   border: 1px solid var(--border);
@@ -371,12 +377,18 @@ input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; backg
   transition: box-shadow 0.15s ease, background 0.15s ease, transform 0.1s ease;
 }
 
+/* Основная кнопка забирает всё свободное место в строке (текст длиннее),
+   вторая — по размеру своего текста. Ни одна не сжимается ниже ширины
+   своей надписи (браузер по умолчанию не даёт flex-item сжаться меньше
+   min-content, поэтому именно на 0 0 auto надёжнее, чем flex:1 у обеих). */
 .baseline-controls button.primary {
+  flex: 1 1 auto;
   background: var(--primary);
   color: var(--primary-foreground);
   border-color: var(--primary);
   box-shadow: var(--shadow-sm);
 }
+.baseline-controls button:not(.primary) { flex: 0 0 auto; }
 .baseline-controls button.primary:hover { box-shadow: var(--shadow-md); }
 .baseline-controls button:active { transform: scale(0.98); }
 .baseline-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
