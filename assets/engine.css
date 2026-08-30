@@ -168,9 +168,11 @@ input:focus-visible {
 .panel-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
 
 @media (min-width: 860px) {
-  /* Раньше было 1.25fr:1fr — карточка ввода заметно шире карточки итога,
-     пара выглядела как "два разных блока", а не единая раскладка. */
-  .panel-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+  /* Раньше было 1.25fr:1fr и align-items:start — карточка ввода была и шире,
+     и (за счёт разной высоты контента) заметно выше карточки итога, пара
+     выглядела как два разных блока, а не единая раскладка. stretch тянет
+     обе карточки на высоту более высокой — низ теперь тоже на одном уровне. */
+  .panel-grid { grid-template-columns: 1fr 1fr; align-items: stretch; }
   .result-card { position: sticky; top: 20px; }
 }
 
@@ -360,7 +362,11 @@ input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; backg
 /* flex-wrap — запасной вариант для очень узких экранов: если обеим кнопкам
    не хватает места даже в одну строку, вторая уходит на новую строку целиком,
    а не переносит текст посередине слова. */
-.baseline-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+/* margin-top:auto прижимает кнопки (и подпись под ними) к низу карточки —
+   когда stretch делает карточку итога выше её собственного контента (чтобы
+   сравняться по высоте с карточкой ввода), эта группа занимает освободившееся
+   место снизу, а не оставляет пустой разрыв где-то посередине карточки. */
+.baseline-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
 .baseline-controls button {
   font: inherit;
