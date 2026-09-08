@@ -1,10 +1,11 @@
 /**
  * Общий движок калькуляторов мотивации.
  *
- * Что общее у всех клиентов (живёт здесь): переключатель ролей, слайдеры,
- * механика "зафиксировать сейчас → живая дельта", подсказки, вёрстка и тема.
+ * Что общее у всех клиентов (живёт здесь): переключатель ролей, поля ввода
+ * (слайдер+число, выбор из списка, галочка), механика "зафиксировать сейчас →
+ * живая дельта", подсказки, вёрстка и тема.
  *
- * Что своё у каждого клиента (живёт в client.js каждой папки): набор полей
+ * Что своё у каждого клиента (живёт в index.html каждой папки): набор полей
  * и функция compute(state) — сама формула расчёта зарплаты может быть какой
  * угодно, движок про неё ничего не знает и не навязывает форму расчёта.
  *
@@ -21,17 +22,36 @@
  *       id: 'optometrist',
  *       label: 'Оптометрист',
  *       fields: [
- *         { id: 'days', label: '...', unit: 'count'|'money'|'percent',
- *           min, max, step, default,
- *           marginalLabel: '...',            // необязательно, нужен только если marginal возвращает число
- *           // необязательно — подсказка "за счёт чего вырасти" под слайдером:
- *           //  - вернуть number → рендерится как "{marginalLabel} ≈ +{число} ₽/мес"
- *           //    (годится для линейных формул: ставка × количество)
- *           //  - вернуть string (html) → рендерится как есть, marginalLabel игнорируется
- *           //    (нужен для ступенчатых/пороговых формул — сам опиши, сколько
- *           //    осталось до следующего порога и какой будет прибавка)
- *           marginal: (state) => number | string
- *         },
+ *         // тип поля выбирается по field.type:
+ *         //
+ *         //  (нет type) или type:'range' — число со слайдером (по умолчанию).
+ *         //    { id, label, unit: 'count'|'money'|'percent', min, max, step, default,
+ *         //      slider: false  // необязательно — убрать слайдер, оставить только
+ *         //                     // поле ввода (для сумм-доплат, где "крутить" нечего),
+ *         //      marginalLabel, marginal }  // см. ниже
+ *         //
+ *         //  type:'select' — выбор из списка.
+ *         //    { id, label, type:'select', default: 'значение',
+ *         //      options: ['A','B'] | [{value:'a', label:'A'}, ...] }
+ *         //
+ *         //  type:'checkbox' — галочка да/нет, state хранит boolean.
+ *         //    { id, label, type:'checkbox', default: false }
+ *         //
+ *         //  type:'heading' — подзаголовок-разделитель внутри списка полей,
+ *         //    без значения и без state. { label, type:'heading' }
+ *         //
+ *         //  marginal(state) — необязательная подсказка "за счёт чего вырасти"
+ *         //  под полем:
+ *         //   - вернуть number → рендерится как "{marginalLabel} ≈ +{число} ₽/мес"
+ *         //     (годится для линейных формул: ставка × количество)
+ *         //   - вернуть string (html) → рендерится как есть, marginalLabel игнорируется
+ *         //     (нужен для ступенчатых/пороговых формул — сам опиши, сколько
+ *         //     осталось до следующего порога и какой будет прибавка)
+ *         //
+ *         //  key: true — необязательно. Если хотя бы у одного поля роли стоит
+ *         //  key:true, в строке "База: …" под итогом показываются только
+ *         //  key-поля (иначе — все). Нужно, когда полей много и полный список
+ *         //  в подписи точки отсчёта нечитаем.
  *         ...
  *       ],
  *       // state — объект {fieldId: значение}; вернуть строки для итоговой карточки
@@ -50,7 +70,15 @@
     return Math.round(n).toLocaleString('ru-RU') + ' ₽';
   }
 
+  function optValue(o) { return (o && typeof o === 'object') ? o.value : o; }
+  function optLabel(o) { return (o && typeof o === 'object') ? (o.label != null ? o.label : o.value) : o; }
+
   function formatFieldValue(field, value) {
+    if (field.type === 'checkbox') return value ? 'да' : 'нет';
+    if (field.type === 'select') {
+      var opt = (field.options || []).filter(function (o) { return optValue(o) === value; })[0];
+      return opt ? optLabel(opt) : String(value);
+    }
     if (field.unit === 'money') return fmtMoney(value);
     if (field.unit === 'percent') return value + '%';
     return String(value);
@@ -106,6 +134,10 @@
     return node;
   }
 
+  function valueFields(role) {
+    return role.fields.filter(function (f) { return f.type !== 'heading'; });
+  }
+
   function init(config) {
     applyTheme(config.theme);
     setFavicon(config.favicon);
@@ -137,13 +169,13 @@
     resultCard.appendChild(baselineNote);
 
     var panels = {};
-    var sliders = {}; // roleId -> fieldId -> {input, valueEl, margEl, field}
+    var slots = {}; // roleId -> fieldId -> { field, input?, numberInput?, select?, checkbox?, margEl? }
     var state = {};
     var baselines = {};
 
     config.roles.forEach(function (role, idx) {
       state[role.id] = {};
-      role.fields.forEach(function (f) { state[role.id][f.id] = f.default; });
+      valueFields(role).forEach(function (f) { state[role.id][f.id] = f.default; });
       baselines[role.id] = null;
 
       var btn = el('button', {
@@ -159,81 +191,120 @@
 
       var panel = el('section', { class: 'inputs', id: 'panel-' + role.id });
       if (idx !== 0) panel.hidden = true;
-      sliders[role.id] = {};
+      slots[role.id] = {};
 
       role.fields.forEach(function (field) {
+        if (field.type === 'heading') {
+          panel.appendChild(el('p', { class: 'field-group', text: field.label }));
+          return;
+        }
+
         var fieldId = 'f-' + role.id + '-' + field.id;
-        var suffix = unitSuffix(field);
-        // Ползунок — для быстрого исследования "что если"; число рядом — для
-        // точного ввода реальных данных (например, из отчёта AMO/iTigris).
-        // Оба управляют одним и тем же state и обновляют друг друга.
-        // Число — как текст, не type=number: так можно показывать "8 000" с
-        // разделителем разрядов, как в остальном интерфейсе (карточка итога),
-        // а не голое "8000". Разбор значения — вручную, через parseFloat.
-        var numberInput = el('input', {
-          type: 'text',
-          inputmode: 'decimal',
-          class: 'value-input mono' + (suffix ? ' has-unit' : ''),
-          id: fieldId,
-          value: field.default
-        });
-        var valueWrap = el('div', { class: 'value-input-wrap' }, [
-          numberInput,
-          suffix ? el('span', { class: 'value-unit', text: suffix }) : null
-        ]);
-        var rangeInput = el('input', {
-          type: 'range',
-          'aria-label': field.label,
-          min: field.min,
-          max: field.max,
-          step: field.step,
-          value: field.default
-        });
-        // Подпись всегда на отдельной строке сверху (как Label над Input у
-        // Оптимайзера) — так число со слайдером стоят на одном месте у всех
-        // полей независимо от длины подписи. Раньше при переносе длинной
-        // подписи на две строки поле съезжало вниз и "плавало" относительно
-        // однострочных полей.
-        var label = el('label', { for: fieldId, text: field.label, class: 'field-label' });
-        var control = el('div', { class: 'field-control' }, [valueWrap, rangeInput]);
-        var margEl = null;
-        var fieldWrap = el('div', { class: 'field' }, [label, control]);
-        if (field.marginal) {
-          margEl = el('p', { class: 'marginal' });
+        var slot = { field: field };
+        var margEl = field.marginal ? el('p', { class: 'marginal' }) : null;
+        var fieldWrap = el('div', { class: 'field' });
+
+        if (field.type === 'checkbox') {
+          var cb = el('input', { type: 'checkbox', id: fieldId, class: 'field-checkbox' });
+          cb.checked = !!field.default;
+          fieldWrap.appendChild(el('label', { class: 'checkbox-row', for: fieldId }, [
+            cb, el('span', { text: field.label })
+          ]));
+          cb.addEventListener('change', function () {
+            state[role.id][field.id] = cb.checked;
+            render();
+          });
+          slot.checkbox = cb;
+
+        } else if (field.type === 'select') {
+          fieldWrap.appendChild(el('label', { for: fieldId, text: field.label, class: 'field-label' }));
+          var sel = el('select', { id: fieldId, class: 'field-select' });
+          (field.options || []).forEach(function (o) {
+            sel.appendChild(el('option', { value: optValue(o), text: optLabel(o) }));
+          });
+          sel.value = field.default;
+          fieldWrap.appendChild(sel);
+          sel.addEventListener('change', function () {
+            state[role.id][field.id] = sel.value;
+            render();
+          });
+          slot.select = sel;
+
+        } else {
+          // Число: слайдер — для быстрого исследования "что если"; поле рядом —
+          // для точного ввода реальных данных (из отчёта AMO/iTigris). Оба
+          // управляют одним state. slider:false убирает ползунок (суммы-доплаты,
+          // где "крутить" нечего — только вписать цифру из отчёта).
+          fieldWrap.appendChild(el('label', { for: fieldId, text: field.label, class: 'field-label' }));
+          var suffix = unitSuffix(field);
+          var hasSlider = field.slider !== false;
+
+          // Число — как текст, не type=number: так можно показывать "8 000" с
+          // разделителем разрядов, как в остальном интерфейсе. Разбор — вручную.
+          var numberInput = el('input', {
+            type: 'text',
+            inputmode: 'decimal',
+            class: 'value-input mono' + (suffix ? ' has-unit' : ''),
+            id: fieldId,
+            value: field.default
+          });
+          var valueWrap = el('div', { class: 'value-input-wrap' }, [
+            numberInput,
+            suffix ? el('span', { class: 'value-unit', text: suffix }) : null
+          ]);
+          var controlChildren = [valueWrap];
+          var rangeInput = null;
+          if (hasSlider) {
+            rangeInput = el('input', {
+              type: 'range',
+              'aria-label': field.label,
+              min: field.min,
+              max: field.max,
+              step: field.step,
+              value: field.default
+            });
+            controlChildren.push(rangeInput);
+            rangeInput.addEventListener('input', function () {
+              state[role.id][field.id] = Number(rangeInput.value);
+              render();
+            });
+          }
+          fieldWrap.appendChild(el('div', { class: 'field-control' + (hasSlider ? '' : ' no-slider') }, controlChildren));
+
+          // При входе в поле показываем "сырое" число без разделителей.
+          numberInput.addEventListener('focus', function () {
+            numberInput.value = String(state[role.id][field.id]);
+            numberInput.select();
+          });
+          // Во время печати не переформатируем и не клэмпим — иначе курсор
+          // скачет и цифры "поедают" друг друга на каждое нажатие клавиши.
+          numberInput.addEventListener('input', function () {
+            var v = parseGroupedNumber(numberInput.value);
+            if (v !== null) {
+              state[role.id][field.id] = v;
+              render();
+            }
+          });
+          // Клэмп в границы и возврат разделителей разрядов — когда ушли с поля.
+          numberInput.addEventListener('blur', function () {
+            var v = parseGroupedNumber(numberInput.value);
+            if (v === null) v = field.default;
+            if (typeof field.max === 'number') v = Math.min(field.max, v);
+            if (typeof field.min === 'number') v = Math.max(field.min, v);
+            state[role.id][field.id] = v;
+            render();
+          });
+
+          slot.input = rangeInput;
+          slot.numberInput = numberInput;
+        }
+
+        if (margEl) {
+          slot.margEl = margEl;
           fieldWrap.appendChild(margEl);
         }
         panel.appendChild(fieldWrap);
-        sliders[role.id][field.id] = { input: rangeInput, numberInput: numberInput, margEl: margEl, field: field };
-
-        rangeInput.addEventListener('input', function () {
-          state[role.id][field.id] = Number(rangeInput.value);
-          render();
-        });
-
-        // При входе в поле показываем "сырое" число без разделителей —
-        // редактировать "8 000" неудобно, пробел не разберёшь, где курсор.
-        numberInput.addEventListener('focus', function () {
-          numberInput.value = String(state[role.id][field.id]);
-          numberInput.select();
-        });
-        // Во время печати не насильно переформатируем и не клэмпим — иначе
-        // курсор скачет и цифры "поедают" друг друга на каждое нажатие клавиши.
-        numberInput.addEventListener('input', function () {
-          var v = parseGroupedNumber(numberInput.value);
-          if (v !== null) {
-            state[role.id][field.id] = v;
-            render();
-          }
-        });
-        // Клэмп в границы поля и возврат разделителей разрядов — только когда
-        // сотрудник закончил ввод (ушёл с поля).
-        numberInput.addEventListener('blur', function () {
-          var v = parseGroupedNumber(numberInput.value);
-          if (v === null) v = field.default;
-          v = Math.min(field.max, Math.max(field.min, v));
-          state[role.id][field.id] = v;
-          render();
-        });
+        slots[role.id][field.id] = slot;
       });
 
       panels[role.id] = panel;
@@ -260,8 +331,13 @@
       input.style.setProperty('--fill', pct + '%');
     }
 
+    function snapshotFields(role) {
+      var keyed = valueFields(role).filter(function (f) { return f.key; });
+      return keyed.length ? keyed : valueFields(role);
+    }
+
     function describeSnapshot(role, snapshot) {
-      return role.fields.map(function (f) {
+      return snapshotFields(role).map(function (f) {
         return f.label + ': ' + formatFieldValue(f, snapshot[f.id]);
       }).join(' · ');
     }
@@ -270,22 +346,30 @@
       var role = config.roles.filter(function (r) { return r.id === currentRole; })[0];
       var s = state[role.id];
 
-      role.fields.forEach(function (field) {
-        var slot = sliders[role.id][field.id];
-        slot.input.value = s[field.id];
-        // Не трогаем значение поля, пока в нём печатают — иначе на каждое
-        // нажатие клавиши курсор прыгает в конец и цифры вводятся не туда.
-        if (document.activeElement !== slot.numberInput) {
-          slot.numberInput.value = formatGrouped(s[field.id]);
+      valueFields(role).forEach(function (field) {
+        var slot = slots[role.id][field.id];
+        if (!slot) return;
+
+        if (slot.checkbox) {
+          slot.checkbox.checked = !!s[field.id];
+        } else if (slot.select) {
+          slot.select.value = s[field.id];
+        } else {
+          if (slot.input) {
+            slot.input.value = s[field.id];
+            fillPct(slot.input);
+          }
+          // Не трогаем поле, пока в нём печатают — иначе курсор прыгает в конец.
+          if (slot.numberInput && document.activeElement !== slot.numberInput) {
+            slot.numberInput.value = formatGrouped(s[field.id]);
+          }
         }
-        fillPct(slot.input);
+
         if (slot.margEl && field.marginal) {
           var m = field.marginal(s);
           if (typeof m === 'number') {
-            // Простой случай: линейная ценность шага (годится для формул вида "ставка × количество").
             slot.margEl.innerHTML = (field.marginalLabel || 'Изменение') + ' ≈ <span class="mono">+' + fmtMoney(m) + '/мес</span>';
           } else {
-            // Формула сложнее линейной (ступени, пороги и т.п.) — клиент сам строит готовую HTML-подсказку.
             slot.margEl.innerHTML = m;
           }
         }
@@ -346,9 +430,6 @@
       var baseline = baselines[role.id];
       if (!baseline) return;
       state[role.id] = Object.assign({}, baseline.snapshot);
-      role.fields.forEach(function (field) {
-        sliders[role.id][field.id].input.value = state[role.id][field.id];
-      });
       render();
     });
 

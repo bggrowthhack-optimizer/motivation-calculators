@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Надин — нормы</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/engine.css">
+<style>
+  .app { max-width: 720px; }
+  .note {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
+    background: color-mix(in oklab, var(--info) 10%, var(--card));
+    border-radius: var(--radius-lg);
+    padding: 12px 14px;
+    line-height: 1.5;
+  }
+  .note strong { color: var(--foreground); }
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 22px;
+    box-shadow: var(--shadow-sm);
+  }
+  .section h2 {
+    margin: 0 0 16px;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .norm-row {
+    display: grid;
+    grid-template-columns: 1fr 140px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+  }
+  .norm-row:first-of-type { border-top: none; }
+  .norm-row label {
+    font-size: 0.8125rem;
+    color: var(--foreground);
+  }
+  .norm-row .hint {
+    display: block;
+    font-size: 0.6875rem;
+    color: var(--muted-foreground);
+    margin-top: 2px;
+  }
+  .norm-input-wrap { position: relative; }
+  .norm-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 34px 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--background);
+    color: var(--foreground);
+    font: inherit;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: right;
+  }
+  .norm-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 20%, transparent);
+  }
+  .norm-input.changed { border-color: var(--good); background: color-mix(in oklab, var(--good) 12%, var(--background)); }
+  .norm-unit {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    pointer-events: none;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .actions button {
+    font: inherit;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    height: 40px;
+    padding: 0 18px;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--foreground);
+  }
+  .actions button.primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+  .actions button:active { transform: scale(0.98); }
+  .status { font-size: 0.8125rem; color: var(--excellent-text); font-weight: 500; }
+  .status:empty { display: none; }
+  textarea.json {
+    width: 100%;
+    min-height: 120px;
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--background);
+    color: var(--foreground);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    resize: vertical;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="app">
+    <div class="hero">
+      <p class="eyebrow">Надин · мотивация персонала</p>
+      <h1>Нормы расчёта</h1>
+      <p class="lede">Пороги показателей, ставки часа и суммы доплат. Меняешь значение → «Сохранить» → калькулятор в этом браузере начинает считать по новым нормам.</p>
+    </div>
+
+    <p class="note">
+      <strong>Важно:</strong> правки сохраняются только в этом браузере (у статического сайта нет общего хранилища).
+      Сотрудники, открывшие калькулятор у себя, продолжают видеть значения по умолчанию.
+      Чтобы новые нормы стали боевыми для всех — передай JSON снизу разработчику, он впишет их в код и задеплоит.
+    </p>
+
+    <div id="sections"></div>
+
+    <div class="section">
+      <div class="actions">
+        <button type="button" class="primary" id="save">Сохранить</button>
+        <button type="button" id="reset">Сбросить к значениям по умолчанию</button>
+        <button type="button" id="copy">Скопировать JSON</button>
+        <span class="status" id="status"></span>
+      </div>
+      <textarea class="json" id="json" readonly aria-label="JSON норм"></textarea>
+    </div>
+  </div>
+</div>
+
+<script src="../norms.js"></script>
+<script>
+(function () {
+  var API = window.NADIN_NORMS;
+
+  // kind: pct — доля, показываем ×100 с суффиксом «%»
+  //       pp  — доля, показываем ×100 с суффиксом «п.п.»
+  //       rub — рубли, целое
+  //       num — как есть (шт / %)
+  var SCHEMA = [
+    { title: 'Врач (ОКЛ)', rows: [
+      { path: 'врач.базовыйПроцент', label: 'Базовая ставка % от продаж линз', kind: 'pct' },
+      { path: 'врач.минПроцент', label: 'Минимальный итоговый %', kind: 'pct' },
+      { path: 'врач.максПроцент', label: 'Максимальный итоговый %', kind: 'pct' },
+      { path: 'врач.конверсия.верх', label: 'Конверсия — верхний порог', hint: '≥ этого → +1 п.п. к проценту', kind: 'num', unit: '%' },
+      { path: 'врач.конверсия.низ', label: 'Конверсия — нижний порог', hint: 'ниже этого → −1 п.п.', kind: 'num', unit: '%' },
+      { path: 'врач.чек.верх', label: 'Средний чек линз — верхний порог', hint: '≥ этого → +1 п.п.', kind: 'rub' },
+      { path: 'врач.чек.низ', label: 'Средний чек линз — нижний порог', hint: 'ниже этого → −1 п.п.', kind: 'rub' },
+      { path: 'врач.миосмарт.порог', label: 'МИОСМАРТ — порог', hint: 'строго больше → бонус к проценту', kind: 'num', unit: 'шт' },
+      { path: 'врач.миосмарт.бонусПроцент', label: 'МИОСМАРТ — бонус к проценту', kind: 'pp' },
+      { path: 'врач.ставкаЧаса.Молодой специалист', label: 'Ставка часа — молодой специалист', kind: 'rub' },
+      { path: 'врач.ставкаЧаса.Опытный врач', label: 'Ставка часа — опытный врач', kind: 'rub' },
+      { path: 'врач.ставкаЧаса.Наставник', label: 'Ставка часа — наставник', kind: 'rub' },
+      { path: 'врач.чекЛист', label: 'Доплата за чек-лист', kind: 'rub' },
+      { path: 'врач.передача', label: 'Доплата за передачу пациентов', kind: 'rub' },
+      { path: 'врач.часНаставничества', label: 'Стоимость часа наставничества', kind: 'rub' },
+      { path: 'врач.долиВыручки.диагностика', label: 'Доля от выручки ОКЛ-диагностики', hint: 'приёмы + ОКТ + глазное дно', kind: 'pct' },
+      { path: 'врач.долиВыручки.товары', label: 'Доля от выручки ОКЛ-товаров', kind: 'pct' },
+      { path: 'врач.долиВыручки.визуальнаяТерапия', label: 'Доля от выручки визуальной терапии', kind: 'pct' }
+    ] },
+    { title: 'Консультант (очки)', rows: [
+      { path: 'консультант.базовыйПроцент', label: 'Базовая ставка % от продаж очков', kind: 'pct' },
+      { path: 'консультант.минПроцент', label: 'Минимальный итоговый %', kind: 'pct' },
+      { path: 'консультант.максПроцент', label: 'Максимальный итоговый %', kind: 'pct' },
+      { path: 'консультант.конверсия.верх', label: 'Конверсия — верхний порог', hint: '≥ этого → +1 п.п.', kind: 'num', unit: '%' },
+      { path: 'консультант.конверсия.низ', label: 'Конверсия — нижний порог', hint: 'ниже этого → −1 п.п.', kind: 'num', unit: '%' },
+      { path: 'консультант.чек.верх', label: 'Средний чек очков — верхний порог', kind: 'rub' },
+      { path: 'консультант.чек.низ', label: 'Средний чек очков — нижний порог', kind: 'rub' },
+      { path: 'консультант.ставкаЧаса', label: 'Ставка часа', kind: 'rub' },
+      { path: 'консультант.планОтзывам', label: 'Доплата за план по отзывам', kind: 'rub' },
+      { path: 'консультант.старшийСмены', label: 'Доплата за старшего смены', kind: 'rub' }
+    ] }
+  ];
+
+  function getPath(obj, path) {
+    return path.split('.').reduce(function (o, k) { return o == null ? o : o[k]; }, obj);
+  }
+  function setPath(obj, path, value) {
+    var keys = path.split('.');
+    var last = keys.pop();
+    var target = keys.reduce(function (o, k) {
+      if (!o[k] || typeof o[k] !== 'object') o[k] = {};
+      return o[k];
+    }, obj);
+    target[last] = value;
+  }
+
+  // модель → отображаемое число
+  function toDisplay(row, raw) {
+    if (row.kind === 'pct' || row.kind === 'pp') return +(raw * 100).toFixed(4);
+    return raw;
+  }
+  // отображаемое число → модель
+  function fromDisplay(row, shown) {
+    if (row.kind === 'pct' || row.kind === 'pp') return +(shown / 100).toFixed(6);
+    return shown;
+  }
+  function unitOf(row) {
+    if (row.unit) return row.unit;
+    if (row.kind === 'pct') return '%';
+    if (row.kind === 'pp') return 'п.п.';
+    if (row.kind === 'rub') return '₽';
+    return '';
+  }
+
+  var defaults = API.DEFAULT_NORMS;
+  var current = API.load();
+  var inputs = [];
+
+  function parseVal(raw) {
+    var v = parseFloat(String(raw).replace(/\s/g, '').replace(',', '.'));
+    return isNaN(v) ? null : v;
+  }
+
+  function collect() {
+    var out = JSON.parse(JSON.stringify(API.DEFAULT_NORMS));
+    inputs.forEach(function (rec) {
+      var parsed = parseVal(rec.input.value);
+      if (parsed === null) parsed = toDisplay(rec.row, rec.def);
+      setPath(out, rec.row.path, fromDisplay(rec.row, parsed));
+    });
+    return out;
+  }
+
+  var jsonBox = document.getElementById('json');
+  function refreshJson() {
+    jsonBox.value = JSON.stringify(collect(), null, 2);
+  }
+
+  var host = document.getElementById('sections');
+  SCHEMA.forEach(function (sec) {
+    var box = document.createElement('div');
+    box.className = 'section';
+    box.innerHTML = '<h2>' + sec.title + '</h2>';
+    sec.rows.forEach(function (row) {
+      var def = getPath(defaults, row.path);
+      var val = getPath(current, row.path);
+      var wrap = document.createElement('div');
+      wrap.className = 'norm-row';
+
+      var lab = document.createElement('label');
+      lab.textContent = row.label;
+      if (row.hint) {
+        var h = document.createElement('span');
+        h.className = 'hint';
+        h.textContent = row.hint;
+        lab.appendChild(h);
+      }
+
+      var iw = document.createElement('div');
+      iw.className = 'norm-input-wrap';
+      var inp = document.createElement('input');
+      inp.className = 'norm-input';
+      inp.type = 'text';
+      inp.inputMode = 'decimal';
+      inp.value = String(toDisplay(row, val)).replace('.', ',');
+      var u = document.createElement('span');
+      u.className = 'norm-unit';
+      u.textContent = unitOf(row);
+      iw.appendChild(inp);
+      iw.appendChild(u);
+
+      var rec = { row: row, input: inp, def: def };
+      function markChanged() {
+        var parsed = parseVal(inp.value);
+        rec.input.classList.toggle('changed', parsed !== null && fromDisplay(row, parsed) !== def);
+        refreshJson();
+      }
+      inp.addEventListener('input', markChanged);
+      inputs.push(rec);
+      markChanged();
+
+      wrap.appendChild(lab);
+      wrap.appendChild(iw);
+      box.appendChild(wrap);
+    });
+    host.appendChild(box);
+  });
+
+  refreshJson();
+
+  var status = document.getElementById('status');
+  function flash(msg) {
+    status.textContent = msg;
+    setTimeout(function () { if (status.textContent === msg) status.textContent = ''; }, 2500);
+  }
+
+  document.getElementById('save').addEventListener('click', function () {
+    var ok = API.save(collect());
+    flash(ok ? 'Сохранено — калькулятор в этом браузере считает по новым нормам.' : 'Не удалось сохранить (браузер блокирует хранилище).');
+  });
+
+  document.getElementById('reset').addEventListener('click', function () {
+    API.reset();
+    inputs.forEach(function (rec) {
+      rec.input.value = String(toDisplay(rec.row, rec.def)).replace('.', ',');
+      rec.input.classList.remove('changed');
+    });
+    refreshJson();
+    flash('Сброшено к значениям по умолчанию.');
+  });
+
+  document.getElementById('copy').addEventListener('click', function () {
+    jsonBox.select();
+    var done = false;
+    try { done = document.execCommand('copy'); } catch (e) {}
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(jsonBox.value).then(function () { flash('JSON скопирован.'); }, function () {});
+      return;
+    }
+    flash(done ? 'JSON скопирован.' : 'Выдели текст и скопируй вручную.');
+  });
+})();
+</script>
+</body>
+</html>
