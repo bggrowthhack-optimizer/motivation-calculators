@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Калькуляторы мотивации — ОВС</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AE%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f6f3;
+    --surface: #ffffff;
+    --ink: #1b1d21;
+    --muted: #6c7076;
+    --border: #e4e3de;
+    --hover: #f0efeb;
+    --live: #1f7a4d;
+    --live-bg: #e8f1ea;
+    --draft: #9a6a12;
+    --draft-bg: #f5ede0;
+    --focus: #4b57d4;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131519;
+      --surface: #1b1e23;
+      --ink: #e8e9ec;
+      --muted: #969aa2;
+      --border: #2c3037;
+      --hover: #22262c;
+      --live: #5cc98d;
+      --live-bg: #17281f;
+      --draft: #d9a24a;
+      --draft-bg: #2c2413;
+      --focus: #8b95f0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131519;
+    --surface: #1b1e23;
+    --ink: #e8e9ec;
+    --muted: #969aa2;
+    --border: #2c3037;
+    --hover: #22262c;
+    --live: #5cc98d;
+    --live-bg: #17281f;
+    --draft: #d9a24a;
+    --draft-bg: #2c2413;
+    --focus: #8b95f0;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 660px; margin: 0 auto; padding: 56px 22px 72px; }
+
+  header { margin-bottom: 34px; }
+  .eyebrow {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    margin: 0 0 12px;
+    font-size: 1.7rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .lede { margin: 0; max-width: 56ch; font-size: 0.9rem; color: var(--muted); }
+
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex-shrink: 0; }
+  .card-head h2 { margin: 0; font-size: 1.02rem; font-weight: 600; flex: 1; min-width: 0; }
+  .tag {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .tag.live { color: var(--live); background: var(--live-bg); }
+  .tag.draft { color: var(--draft); background: var(--draft-bg); }
+
+  .desc { margin: 0 0 14px; font-size: 0.85rem; color: var(--muted); }
+  .roles { color: var(--ink); font-weight: 500; }
+
+  .links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    color: var(--ink);
+    background: var(--surface);
+    transition: background 0.14s ease, border-color 0.14s ease;
+  }
+  .btn:hover { background: var(--hover); }
+  .btn.primary {
+    border-color: color-mix(in oklab, var(--c) 45%, var(--border));
+    color: var(--c);
+    background: color-mix(in oklab, var(--c) 8%, var(--surface));
+  }
+  .btn.primary:hover { background: color-mix(in oklab, var(--c) 16%, var(--surface)); }
+  .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  footer {
+    margin-top: 34px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">ОВС · Команда Роста</p>
+    <h1>Калькуляторы мотивации</h1>
+    <p class="lede">Прямые ссылки на калькуляторы зарплаты по клиентам и на редакторы норм. Страница по неочевидному адресу и закрыта от индексации — но это не настоящая защита: адрес держать при себе, клиентам не пересылать, на самом сайте общего списка клиентов нет.</p>
+  </header>
+
+  <ul class="list">
+
+    <li class="card" style="--c: #128a99">
+      <div class="card-head">
+        <span class="dot"></span>
+        <h2>Надин</h2>
+        <span class="tag live">боевой</span>
+      </div>
+      <p class="desc"><span class="roles">Врач (ОКЛ) · Консультант.</span> Оклад + % с продаж с пороговыми надбавками (конверсия, средний чек, МИОСМАРТ) + прочие выплаты. Потолок итога 230 000 ₽.</p>
+      <div class="links">
+        <a class="btn primary" href="https://bggrowthhack-optimizer.github.io/motivation-calculators/nadin/">Калькулятор →</a>
+        <a class="btn" href="https://bggrowthhack-optimizer.github.io/motivation-calculators/nadin/settings/">Нормы</a>
+      </div>
+    </li>
+
+    <li class="card" style="--c: #bd6f1e">
+      <div class="card-head">
+        <span class="dot"></span>
+        <h2>Модный взгляд</h2>
+        <span class="tag draft">черновик</span>
+      </div>
+      <p class="desc"><span class="roles">Оптометрист · Консультант.</span> Оклад + % от личной выручки по лестнице грейдов (выполнение плана филиала) + бинарная KPI-премия месяца. Цифры со встречи 08.09, уточняются.</p>
+      <div class="links">
+        <a class="btn primary" href="https://bggrowthhack-optimizer.github.io/motivation-calculators/modnyy-vzglyad/">Калькулятор →</a>
+        <a class="btn" href="https://bggrowthhack-optimizer.github.io/motivation-calculators/modnyy-vzglyad/settings/">Нормы (грейды + KPI)</a>
+      </div>
+    </li>
+
+    <li class="card" style="--c: #4b57d4">
+      <div class="card-head">
+        <span class="dot"></span>
+        <h2>Челны-Оптика</h2>
+        <span class="tag live">боевой</span>
+      </div>
+      <p class="desc"><span class="roles">Оператор КЦ.</span> Оклад + три ступени надбавок за каждый из двух KPI — обращение → запись и доходимость (3 000 / 5 000 / 10 000 ₽). Опубликован 28.08.</p>
+      <div class="links">
+        <a class="btn primary" href="https://bggrowthhack-optimizer.github.io/motivation-calculators/chelny-optika/">Калькулятор →</a>
+      </div>
+    </li>
+
+    <li class="card" style="--c: #4b57d4">
+      <div class="card-head">
+        <span class="dot"></span>
+        <h2>ЯКТ</h2>
+        <span class="tag live">боевой</span>
+      </div>
+      <p class="desc"><span class="roles">Оптометрист · Консультант.</span> Ставка за день + процент: оптометрист 3 000 ₽/день + 5 % от ВТЛ-заказа, консультант 2 500 ₽/день + 4,5 % от личной выручки. Опубликован 27.08.</p>
+      <div class="links">
+        <a class="btn primary" href="https://bggrowthhack-optimizer.github.io/motivation-calculators/yakt/">Калькулятор →</a>
+      </div>
+    </li>
+
+  </ul>
+
+  <footer>
+    <p>Репозиторий <span class="mono">bggrowthhack-optimizer/motivation-calculators</span>, хостинг GitHub Pages. Нормы «черновик» правятся на странице «Нормы» (сохраняется в браузере) или в коде — чтобы стало боевым для всех сотрудников.</p>
+  </footer>
+</div>
+</body>
+</html>
