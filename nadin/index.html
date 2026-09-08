@@ -28,6 +28,9 @@
     return Math.round(v * 10000) / 10000; // гасим погрешность сложения долей (0.08−0.01−0.01)
   }
 
+  var ПОТОЛОК = 230000;
+  function capTotal(v) { return Math.min(ПОТОЛОК, v); }
+
   function pctText(p) {
     return (p * 100).toFixed(1).replace('.', ',') + '%';
   }
@@ -152,7 +155,7 @@
           { label: '% с продаж линз · ' + pctText(pct), value: procОчки },
           { label: 'Прочие выплаты', value: прочее }
         ],
-        total: oklad + procОчки + прочее,
+        total: capTotal(oklad + procОчки + прочее),
         pct: pct
       };
     },
@@ -227,7 +230,7 @@
 
       return {
         rows: rows,
-        total: oklad + procОчки + прочее - s.депремирование,
+        total: capTotal(oklad + procОчки + прочее - s.депремирование),
         pct: pct
       };
     },
