@@ -131,7 +131,54 @@ h1 {
 
 .lede { margin: 0; max-width: 62ch; color: var(--muted-foreground); font-size: 0.875rem; }
 
+/* Шапка «прилипает» к верху окна — при скролле длинного списка полей видно,
+   какая роль выбрана и какая сейчас зарплата, не возвращаясь наверх. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px 0;
+  background: var(--background);
+}
+.topbar.stuck {
+  box-shadow: 0 6px 16px -12px rgb(0 0 0 / 0.5);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  white-space: nowrap;
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.topbar-total .lbl {
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+.topbar-total .mono { font-size: 1rem; font-weight: 600; }
+/* Одна роль — переключателя нет, итог занимает всю ширину шапки. */
+.topbar.single-role .topbar-total {
+  flex: 1;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .role-switch {
+  flex: 1 1 220px;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
@@ -141,6 +188,7 @@ h1 {
   padding: 4px;
   gap: 4px;
 }
+.role-switch[hidden] { display: none; }
 
 .role-btn {
   appearance: none;
@@ -169,7 +217,7 @@ input:focus-visible {
 
 @media (min-width: 860px) {
   .panel-grid { grid-template-columns: 1fr 1fr; align-items: stretch; }
-  .result-card { position: sticky; top: 20px; }
+  .result-card { position: sticky; top: 76px; } /* ниже прилипшей .topbar */
   /* При сгруппированной панели колонка ввода намного выше карточки итога —
      не тянем итог на её высоту (иначе половина карточки — пустота), пусть
      будет своей высоты и «липнет» при скролле. Для простых калькуляторов

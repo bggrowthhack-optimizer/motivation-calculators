@@ -150,6 +150,14 @@
     ]);
 
     var roleSwitch = el('div', { class: 'role-switch', role: 'tablist' });
+    var topTotal = el('span', { class: 'mono' });
+    var topbar = el('div', { class: 'topbar' }, [
+      roleSwitch,
+      el('div', { class: 'topbar-total' }, [
+        el('span', { class: 'lbl', text: 'Итого в месяц' }),
+        topTotal
+      ])
+    ]);
     var panelGrid = el('main', { class: 'panel-grid' });
     var resultCard = el('aside', { class: 'result-card' });
     var resBody = el('div', { class: 'result-body' });
@@ -430,7 +438,9 @@
 
       (groupSums[role.id] || []).forEach(function (gs) {
         var sum = gs.compute(s);
-        gs.el.textContent = sum ? fmtMoney(sum) : '—';
+        // Пусто, а не "—", когда группа ничего не добавляет — чтобы в шапке
+        // свёрнутой группы не стояли рядом два значка ("—" и "+").
+        gs.el.textContent = sum ? fmtMoney(sum) : '';
       });
 
       var computed = role.compute(s);
@@ -445,6 +455,7 @@
         el('span', { class: 'label', text: 'Итого в месяц' }),
         el('span', { class: 'mono', html: fmtMoney(computed.total) })
       ]));
+      topTotal.textContent = fmtMoney(computed.total);
 
       if (role.tip) {
         tipBox.innerHTML = role.tip(computed, s);
@@ -491,17 +502,27 @@
       render();
     });
 
-    if (config.roles.length < 2) roleSwitch.hidden = true;
+    if (config.roles.length < 2) {
+      roleSwitch.hidden = true;
+      topbar.classList.add('single-role');
+    }
 
     app.appendChild(el('div', { class: 'app' }, [
       hero,
-      roleSwitch,
+      topbar,
       panelGrid,
       config.footnotes ? el('footer', {
         class: 'formula',
         html: config.footnotes.map(function (t) { return '<p>' + t + '</p>'; }).join('')
       }) : null
     ]));
+
+    // Тень под прилипшей шапкой — только когда она реально «приклеилась» к верху.
+    var onScroll = function () {
+      topbar.classList.toggle('stuck', topbar.getBoundingClientRect().top <= 0.5);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
 
     render();
   }
