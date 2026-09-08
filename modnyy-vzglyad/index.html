@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мотивация Модный взгляд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/engine.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="./norms.js"></script>
+<script src="../assets/engine.js"></script>
+<script>
+(function () {
+  var fmtMoney = MotivationCalculator.util.fmtMoney;
+  var API = window.MV_NORMS;
+  var NORMS = API.load();
+
+  function pct(x) { return (Math.round(x * 1000) / 10).toString().replace('.', ',') + '%'; }
+  function fmtKpi(v, unit) { return unit === 'percent' ? (Math.round(v * 10) / 10 + '%') : fmtMoney(v); }
+
+  // Подсказка под слайдером «выполнение плана» — до какого грейда тянуть и что он даёт.
+  function gradeHint(s, N) {
+    var cur = API.gradeRate(N.грейды, s.планПроцент);
+    var ng = API.nextGrade(N.грейды, s.планПроцент);
+    if (!ng) {
+      return 'Максимальный грейд — ставка <span class="mono">' + pct(cur) + '</span> зафиксирована.';
+    }
+    var gap = ng.порог - s.планПроцент;
+    var jump = (ng.ставка - cur) * s.выручка;
+    return 'До грейда <span class="mono">' + ng.порог + '%</span> осталось <span class="mono">' + gap.toFixed(0) +
+      ' п.п.</span> → ставка <span class="mono">' + pct(cur) + ' → ' + pct(ng.ставка) + '</span> ≈ <span class="mono">+' +
+      fmtMoney(jump) + '/мес</span>';
+  }
+
+  function kpiHint(s, N) {
+    var k = N.kpi;
+    if (s.kpiЗначение >= k.план) {
+      return 'План по KPI взят — премия <span class="mono">+' + fmtMoney(k.премия) + '</span> твоя.';
+    }
+    var gap = k.план - s.kpiЗначение;
+    return 'До плана <span class="mono">' + fmtKpi(k.план, k.unit) + '</span> осталось <span class="mono">' +
+      fmtKpi(gap, k.unit) + '</span> → премия <span class="mono">+' + fmtMoney(k.премия) + '</span>';
+  }
+
+  function makeRole(id, label, N, planNote, kpiSliderMax) {
+    return {
+      id: id,
+      label: label,
+      groups: [
+        {
+          title: 'Отработка',
+          note: 'Оклад — из расчётки (зависит от стажа/грейда сотрудника).',
+          fields: [
+            { id: 'оклад', label: 'Оклад за месяц', unit: 'money', slider: false, min: 0, default: N.оклад, key: true }
+          ]
+        },
+        {
+          title: 'Продажи — твои рычаги',
+          note: 'Двигай ползунки — вверху видно, как меняется зарплата.',
+          fields: [
+            { id: 'выручка', label: 'Твоя личная выручка за месяц', unit: 'money', key: true,
+              min: 0, max: 1500000, step: 10000, default: 400000 },
+            { id: 'планПроцент', label: 'Выполнение плана продаж филиала', unit: 'percent', key: true,
+              min: 0, max: 140, step: 1, default: 90,
+              marginal: function (s) { return gradeHint(s, N); } },
+            { id: 'kpiЗначение', label: 'KPI месяца — ' + N.kpi.label + ' (план ' + fmtKpi(N.kpi.план, N.kpi.unit) + ')',
+              unit: N.kpi.unit === 'percent' ? 'percent' : 'money', key: true,
+              min: 0, max: kpiSliderMax, step: N.kpi.unit === 'percent' ? 1 : 500,
+              default: Math.round(N.kpi.план * 0.85),
+              marginal: function (s) { return kpiHint(s, N); } }
+          ]
+        }
+      ],
+      compute: function (s) {
+        var rate = API.gradeRate(N.грейды, s.планПроцент);
+        var proc = rate * s.выручка;
+        var kpiOk = s.kpiЗначение >= N.kpi.план;
+        var kpiPrem = kpiOk ? N.kpi.премия : 0;
+        return {
+          rows: [
+            { label: 'Оклад', value: s.оклад },
+            { label: '% с продаж · ставка ' + pct(rate) + ' (план ' + s.планПроцент + '%)', value: proc },
+            { label: 'KPI: ' + N.kpi.label + (kpiOk ? ' — выполнен' : ' — не выполнен'), value: kpiPrem }
+          ],
+          total: s.оклад + proc + kpiPrem,
+          rate: rate, kpiOk: kpiOk
+        };
+      },
+      tip: function (c, s) {
+        var moves = [];
+        var ng = API.nextGrade(N.грейды, s.планПроцент);
+        if (ng) {
+          moves.push({
+            what: 'выполнение плана до ' + ng.порог + '%',
+            money: (ng.ставка - c.rate) * s.выручка
+          });
+        }
+        if (!c.kpiOk) {
+          moves.push({ what: N.kpi.label.toLowerCase() + ' до плана ' + fmtKpi(N.kpi.план, N.kpi.unit), money: N.kpi.премия });
+        }
+        if (!moves.length) {
+          return '<strong>Всё на максимуме.</strong> Дальше зарплату двигает только рост личной выручки при ставке ' + pct(c.rate) + '.';
+        }
+        moves.sort(function (a, b) { return b.money - a.money; });
+        var m = moves[0];
+        return '<strong>Быстрее всего:</strong> подтяни ' + m.what + ' → примерно <strong>+' + fmtMoney(m.money) + '/мес</strong>.';
+      }
+    };
+  }
+
+  function gradeFootnote(N, who) {
+    var steps = N.грейды.map(function (g, i) {
+      if (i === 0) return 'план < ' + (N.грейды[1] ? N.грейды[1].порог : 100) + '% → ' + pct(g.ставка);
+      if (!N.грейды[i + 1]) return 'от ' + g.порог + '% → ' + pct(g.ставка);
+      return g.порог + '–' + (N.грейды[i + 1].порог - 1) + '% → ' + pct(g.ставка);
+    });
+    return '<strong>' + who + ' — грейды % от выручки (по плану филиала):</strong> ' + steps.join('; ') + '.';
+  }
+
+  var опт = NORMS.оптометрист;
+  var конс = NORMS.консультант;
+
+  MotivationCalculator.init({
+    title: 'Калькулятор зарплаты',
+    eyebrow: 'Модный взгляд · мотивация персонала',
+    favicon: '🕶️',
+    theme: { accent: 'oklch(0.62 0.15 55)', accentDark: 'oklch(0.74 0.13 55)' },
+    lede: 'Зарплата = оклад + % с твоих продаж + премия за KPI месяца. Выставь свои цифры, зафиксируй точку отсчёта — и смотри, что выгоднее всего подтянуть. Ничего никуда не отправляется.',
+    footnotes: [
+      '<strong>Зарплата = оклад + % от личной выручки + премия за KPI месяца.</strong>',
+      '<strong>% от выручки</strong> зависит от того, на сколько процентов филиал выполнил план продаж — по лестнице грейдов.',
+      gradeFootnote(конс, 'Консультант'),
+      gradeFootnote(опт, 'Оптометрист'),
+      '<strong>KPI месяца</strong> — один показатель, бинарно: выполнил план по нему → фикс. премия, нет → 0. Консультант: ' + конс.kpi.label + ', план ' + fmtKpi(конс.kpi.план, конс.kpi.unit) + ', премия ' + fmtMoney(конс.kpi.премия) + '. Оптометрист: ' + опт.kpi.label + ', план ' + fmtKpi(опт.kpi.план, опт.kpi.unit) + ', премия ' + fmtMoney(опт.kpi.премия) + '. KPI меняется по месяцам/кварталам.',
+      '<strong>Черновик.</strong> Пороги грейдов, ставки, план и вес KPI — предварительные (встреча 08.09), уточняются.'
+    ],
+    roles: [
+      makeRole('optometrist', 'Оптометрист', опт, null, опт.kpi.unit === 'percent' ? 100 : 40000),
+      makeRole('consultant', 'Консультант', конс, null, конс.kpi.unit === 'percent' ? 100 : 40000)
+    ]
+  });
+})();
+</script>
+</body>
+</html>
