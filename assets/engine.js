@@ -1,9 +1,9 @@
 /**
  * Общий движок калькуляторов мотивации.
  *
- * Что общее у всех клиентов (живёт здесь): переключатель ролей, поля ввода
- * (слайдер+число, выбор из списка, галочка), механика "зафиксировать сейчас →
- * живая дельта", подсказки, вёрстка и тема.
+ * Что общее у всех клиентов (живёт здесь): переключатель ролей, группы полей
+ * (в т.ч. сворачиваемые), поля ввода (слайдер+число, выбор из списка, галочка),
+ * механика "зафиксировать сейчас → живая дельта", подсказки, вёрстка и тема.
  *
  * Что своё у каждого клиента (живёт в index.html каждой папки): набор полей
  * и функция compute(state) — сама формула расчёта зарплаты может быть какой
@@ -11,58 +11,51 @@
  *
  * Конфиг, который принимает MotivationCalculator.init(config):
  * {
- *   title: string,            // <h1>
- *   eyebrow: string,          // строка над заголовком, обычно "Клиент · тема"
- *   lede: string,             // пояснение под заголовком (html разрешён)
- *   favicon: string,          // emoji для <link rel="icon">
+ *   title, eyebrow, lede, favicon,
  *   theme: { accent: '#hex', accentDark: '#hex' },  // необязательно
- *   footnotes: [string, ...], // html-строки внизу страницы с описанием формул
+ *   footnotes: [string, ...],
  *   roles: [
  *     {
- *       id: 'optometrist',
- *       label: 'Оптометрист',
- *       fields: [
- *         // тип поля выбирается по field.type:
- *         //
- *         //  (нет type) или type:'range' — число со слайдером (по умолчанию).
- *         //    { id, label, unit: 'count'|'money'|'percent', min, max, step, default,
- *         //      slider: false  // необязательно — убрать слайдер, оставить только
- *         //                     // поле ввода (для сумм-доплат, где "крутить" нечего),
- *         //      marginalLabel, marginal }  // см. ниже
- *         //
- *         //  type:'select' — выбор из списка.
- *         //    { id, label, type:'select', default: 'значение',
- *         //      options: ['A','B'] | [{value:'a', label:'A'}, ...] }
- *         //
- *         //  type:'checkbox' — галочка да/нет, state хранит boolean.
- *         //    { id, label, type:'checkbox', default: false }
- *         //
- *         //  type:'heading' — подзаголовок-разделитель внутри списка полей,
- *         //    без значения и без state. { label, type:'heading' }
- *         //
- *         //  marginal(state) — необязательная подсказка "за счёт чего вырасти"
- *         //  под полем:
- *         //   - вернуть number → рендерится как "{marginalLabel} ≈ +{число} ₽/мес"
- *         //     (годится для линейных формул: ставка × количество)
- *         //   - вернуть string (html) → рендерится как есть, marginalLabel игнорируется
- *         //     (нужен для ступенчатых/пороговых формул — сам опиши, сколько
- *         //     осталось до следующего порога и какой будет прибавка)
- *         //
- *         //  key: true — необязательно. Если хотя бы у одного поля роли стоит
- *         //  key:true, в строке "База: …" под итогом показываются только
- *         //  key-поля (иначе — все). Нужно, когда полей много и полный список
- *         //  в подписи точки отсчёта нечитаем.
+ *       id, label,
+ *
+ *       // ── поля роли: либо плоский список fields, либо groups ────────────
+ *       fields: [ ...поля... ],           // простой вариант, одна безымянная группа
+ *       // ИЛИ
+ *       groups: [
+ *         {
+ *           title: 'Продажи линз — твои рычаги',   // необязательно
+ *           note: 'Что растёт от твоей работы',    // необязательно, строка под заголовком
+ *           collapsible: true,                     // необязательно — группу можно свернуть
+ *           collapsed: true,                       // необязательно — стартует свёрнутой
+ *           sum: 'money' | (state) => number,      // необязательно — показывать в шапке
+ *                                                  //   группы её вклад: 'money' = сумма
+ *                                                  //   money-полей группы; функция = что
+ *                                                  //   угодно (напр. с учётом ставок/долей)
+ *           fields: [ ...поля... ]
+ *         },
  *         ...
  *       ],
- *       // state — объект {fieldId: значение}; вернуть строки для итоговой карточки
- *       // и total, по которому считается дельта относительно базы
+ *
  *       compute: (state) => ({ rows: [{label, value}], total }),
- *       // необязательно: подсказка под итогом, получает результат compute()
- *       tip: (computed, state) => htmlString
- *     },
- *     ...
+ *       tip: (computed, state) => htmlString      // необязательно
+ *     }
  *   ]
  * }
+ *
+ * Поле (элемент fields):
+ *   (нет type) / type:'range' — число со слайдером.
+ *     { id, label, unit: 'count'|'money'|'percent', min, max, step, default,
+ *       slider: false,        // убрать ползунок, оставить только поле ввода
+ *       marginalLabel, marginal }
+ *   type:'select'   — { id, label, type:'select', default, options: ['A',{value,label}] }
+ *   type:'checkbox' — { id, label, type:'checkbox', default: false }
+ *   type:'heading'  — подзаголовок внутри группы, без значения. { label, type:'heading' }
+ *
+ *   marginal(state) → number  (рендерится "{marginalLabel} ≈ +{n} ₽/мес")
+ *                   → string  (html как есть — для ступенчатых/пороговых формул)
+ *   key: true — если хотя бы у одного поля роли стоит, в строке "База: …"
+ *     под итогом показываются только key-поля (иначе все).
+ *
  * Если ролей всего одна — переключатель ролей скрывается автоматически.
  */
 (function (global) {
@@ -97,17 +90,12 @@
     return '';
   }
 
-  // Разделитель разрядов как у чисел в остальном интерфейсе (ru-RU,
-  // "8 000" вместо "8000") — иначе редактируемое поле и итоговая карточка
-  // показывают одно и то же число по-разному оформленным.
   function formatGrouped(n) {
     return Number(n).toLocaleString('ru-RU');
   }
 
-  // Убирает пробелы-разделители (обычный и неразрывный) перед разбором —
-  // без этого "8 000", введённое или подставленное самим полем, читалось бы как 8.
   function parseGroupedNumber(raw) {
-    var cleaned = String(raw).replace(/[\s ]/g, '').replace(',', '.');
+    var cleaned = String(raw).replace(/[\s ]/g, '').replace(',', '.');
     var v = parseFloat(cleaned);
     return isNaN(v) ? null : v;
   }
@@ -134,8 +122,17 @@
     return node;
   }
 
+  function groupsOf(role) {
+    if (role.groups && role.groups.length) return role.groups;
+    return [{ fields: role.fields || [] }];
+  }
+
   function valueFields(role) {
-    return role.fields.filter(function (f) { return f.type !== 'heading'; });
+    var out = [];
+    groupsOf(role).forEach(function (g) {
+      (g.fields || []).forEach(function (f) { if (f.type !== 'heading') out.push(f); });
+    });
+    return out;
   }
 
   function init(config) {
@@ -169,14 +166,121 @@
     resultCard.appendChild(baselineNote);
 
     var panels = {};
-    var slots = {}; // roleId -> fieldId -> { field, input?, numberInput?, select?, checkbox?, margEl? }
+    var slots = {};       // roleId -> fieldId -> slot
+    var groupSums = {};    // roleId -> [{ group, el }]
     var state = {};
     var baselines = {};
+
+    function renderField(roleId, field, container) {
+      if (field.type === 'heading') {
+        container.appendChild(el('p', { class: 'field-group', text: field.label }));
+        return;
+      }
+
+      var fieldId = 'f-' + roleId + '-' + field.id;
+      var slot = { field: field };
+      var margEl = field.marginal ? el('p', { class: 'marginal' }) : null;
+      var fieldWrap = el('div', { class: 'field' });
+
+      if (field.type === 'checkbox') {
+        var cb = el('input', { type: 'checkbox', id: fieldId, class: 'field-checkbox' });
+        cb.checked = !!field.default;
+        fieldWrap.appendChild(el('label', { class: 'checkbox-row', for: fieldId }, [
+          cb, el('span', { text: field.label })
+        ]));
+        cb.addEventListener('change', function () {
+          state[roleId][field.id] = cb.checked;
+          render();
+        });
+        slot.checkbox = cb;
+
+      } else if (field.type === 'select') {
+        fieldWrap.appendChild(el('label', { for: fieldId, text: field.label, class: 'field-label' }));
+        var sel = el('select', { id: fieldId, class: 'field-select' });
+        (field.options || []).forEach(function (o) {
+          sel.appendChild(el('option', { value: optValue(o), text: optLabel(o) }));
+        });
+        sel.value = field.default;
+        fieldWrap.appendChild(sel);
+        sel.addEventListener('change', function () {
+          state[roleId][field.id] = sel.value;
+          render();
+        });
+        slot.select = sel;
+
+      } else {
+        fieldWrap.appendChild(el('label', { for: fieldId, text: field.label, class: 'field-label' }));
+        var suffix = unitSuffix(field);
+        var hasSlider = field.slider !== false;
+
+        var numberInput = el('input', {
+          type: 'text',
+          inputmode: 'decimal',
+          class: 'value-input mono' + (suffix ? ' has-unit' : ''),
+          id: fieldId,
+          value: field.default
+        });
+        var valueWrap = el('div', { class: 'value-input-wrap' }, [
+          numberInput,
+          suffix ? el('span', { class: 'value-unit', text: suffix }) : null
+        ]);
+        var controlChildren = [valueWrap];
+        var rangeInput = null;
+        if (hasSlider) {
+          rangeInput = el('input', {
+            type: 'range',
+            'aria-label': field.label,
+            min: field.min,
+            max: field.max,
+            step: field.step,
+            value: field.default
+          });
+          controlChildren.push(rangeInput);
+          rangeInput.addEventListener('input', function () {
+            state[roleId][field.id] = Number(rangeInput.value);
+            render();
+          });
+        }
+        fieldWrap.appendChild(el('div', { class: 'field-control' + (hasSlider ? '' : ' no-slider') }, controlChildren));
+
+        numberInput.addEventListener('focus', function () {
+          numberInput.value = String(state[roleId][field.id]);
+          numberInput.select();
+        });
+        numberInput.addEventListener('input', function () {
+          var v = parseGroupedNumber(numberInput.value);
+          if (v !== null) {
+            state[roleId][field.id] = v;
+            render();
+          }
+        });
+        numberInput.addEventListener('blur', function () {
+          var v = parseGroupedNumber(numberInput.value);
+          if (v === null) v = field.default;
+          if (typeof field.max === 'number') v = Math.min(field.max, v);
+          if (typeof field.min === 'number') v = Math.max(field.min, v);
+          state[roleId][field.id] = v;
+          render();
+        });
+
+        slot.input = rangeInput;
+        slot.numberInput = numberInput;
+      }
+
+      if (margEl) {
+        slot.margEl = margEl;
+        fieldWrap.appendChild(margEl);
+      }
+      container.appendChild(fieldWrap);
+      slots[roleId][field.id] = slot;
+    }
 
     config.roles.forEach(function (role, idx) {
       state[role.id] = {};
       valueFields(role).forEach(function (f) { state[role.id][f.id] = f.default; });
       baselines[role.id] = null;
+      slots[role.id] = {};
+      groupSums[role.id] = [];
 
       var btn = el('button', {
         class: 'role-btn' + (idx === 0 ? ' active' : ''),
@@ -189,122 +293,71 @@
       btn.addEventListener('click', function () { switchRole(role.id); });
       roleSwitch.appendChild(btn);
 
-      var panel = el('section', { class: 'inputs', id: 'panel-' + role.id });
+      var groups = groupsOf(role);
+      var grouped = groups.length > 1 || groups[0].title || groups[0].collapsible;
+      if (grouped) panelGrid.classList.add('has-groups');
+      var panel = el('section', { class: 'inputs' + (grouped ? ' grouped' : ''), id: 'panel-' + role.id });
       if (idx !== 0) panel.hidden = true;
-      slots[role.id] = {};
 
-      role.fields.forEach(function (field) {
-        if (field.type === 'heading') {
-          panel.appendChild(el('p', { class: 'field-group', text: field.label }));
-          return;
-        }
+      groups.forEach(function (group) {
+        var container = panel;
 
-        var fieldId = 'f-' + role.id + '-' + field.id;
-        var slot = { field: field };
-        var margEl = field.marginal ? el('p', { class: 'marginal' }) : null;
-        var fieldWrap = el('div', { class: 'field' });
-
-        if (field.type === 'checkbox') {
-          var cb = el('input', { type: 'checkbox', id: fieldId, class: 'field-checkbox' });
-          cb.checked = !!field.default;
-          fieldWrap.appendChild(el('label', { class: 'checkbox-row', for: fieldId }, [
-            cb, el('span', { text: field.label })
-          ]));
-          cb.addEventListener('change', function () {
-            state[role.id][field.id] = cb.checked;
-            render();
-          });
-          slot.checkbox = cb;
-
-        } else if (field.type === 'select') {
-          fieldWrap.appendChild(el('label', { for: fieldId, text: field.label, class: 'field-label' }));
-          var sel = el('select', { id: fieldId, class: 'field-select' });
-          (field.options || []).forEach(function (o) {
-            sel.appendChild(el('option', { value: optValue(o), text: optLabel(o) }));
-          });
-          sel.value = field.default;
-          fieldWrap.appendChild(sel);
-          sel.addEventListener('change', function () {
-            state[role.id][field.id] = sel.value;
-            render();
-          });
-          slot.select = sel;
-
-        } else {
-          // Число: слайдер — для быстрого исследования "что если"; поле рядом —
-          // для точного ввода реальных данных (из отчёта AMO/iTigris). Оба
-          // управляют одним state. slider:false убирает ползунок (суммы-доплаты,
-          // где "крутить" нечего — только вписать цифру из отчёта).
-          fieldWrap.appendChild(el('label', { for: fieldId, text: field.label, class: 'field-label' }));
-          var suffix = unitSuffix(field);
-          var hasSlider = field.slider !== false;
-
-          // Число — как текст, не type=number: так можно показывать "8 000" с
-          // разделителем разрядов, как в остальном интерфейсе. Разбор — вручную.
-          var numberInput = el('input', {
-            type: 'text',
-            inputmode: 'decimal',
-            class: 'value-input mono' + (suffix ? ' has-unit' : ''),
-            id: fieldId,
-            value: field.default
-          });
-          var valueWrap = el('div', { class: 'value-input-wrap' }, [
-            numberInput,
-            suffix ? el('span', { class: 'value-unit', text: suffix }) : null
+        if (grouped) {
+          var card = el('div', { class: 'group-card' + (group.collapsed ? ' collapsed' : '') });
+          var sumEl = group.collapsible && group.sum
+            ? el('span', { class: 'group-sum' })
+            : null;
+          var titleBlock = el('div', { class: 'group-title-block' }, [
+            group.title ? el('p', { class: 'group-title', text: group.title }) : null,
+            group.note ? el('p', { class: 'group-note', text: group.note }) : null
           ]);
-          var controlChildren = [valueWrap];
-          var rangeInput = null;
-          if (hasSlider) {
-            rangeInput = el('input', {
-              type: 'range',
-              'aria-label': field.label,
-              min: field.min,
-              max: field.max,
-              step: field.step,
-              value: field.default
-            });
-            controlChildren.push(rangeInput);
-            rangeInput.addEventListener('input', function () {
-              state[role.id][field.id] = Number(rangeInput.value);
-              render();
+          var headChildren = [titleBlock];
+          if (sumEl || group.collapsible) {
+            headChildren.push(el('div', { class: 'group-head-right' }, [
+              sumEl,
+              group.collapsible ? el('span', { class: 'group-toggle', 'aria-hidden': 'true' }) : null
+            ]));
+          }
+          var head = el('div', { class: 'group-head' }, headChildren);
+          var body = el('div', { class: 'group-body' });
+          if (group.collapsed) body.hidden = true;
+
+          if (group.collapsible) {
+            head.setAttribute('role', 'button');
+            head.setAttribute('tabindex', '0');
+            head.setAttribute('aria-expanded', group.collapsed ? 'false' : 'true');
+            var toggle = function () {
+              var nowCollapsed = card.classList.toggle('collapsed');
+              body.hidden = nowCollapsed;
+              head.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
+            };
+            head.addEventListener('click', toggle);
+            head.addEventListener('keydown', function (e) {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
             });
           }
-          fieldWrap.appendChild(el('div', { class: 'field-control' + (hasSlider ? '' : ' no-slider') }, controlChildren));
 
-          // При входе в поле показываем "сырое" число без разделителей.
-          numberInput.addEventListener('focus', function () {
-            numberInput.value = String(state[role.id][field.id]);
-            numberInput.select();
-          });
-          // Во время печати не переформатируем и не клэмпим — иначе курсор
-          // скачет и цифры "поедают" друг друга на каждое нажатие клавиши.
-          numberInput.addEventListener('input', function () {
-            var v = parseGroupedNumber(numberInput.value);
-            if (v !== null) {
-              state[role.id][field.id] = v;
-              render();
-            }
-          });
-          // Клэмп в границы и возврат разделителей разрядов — когда ушли с поля.
-          numberInput.addEventListener('blur', function () {
-            var v = parseGroupedNumber(numberInput.value);
-            if (v === null) v = field.default;
-            if (typeof field.max === 'number') v = Math.min(field.max, v);
-            if (typeof field.min === 'number') v = Math.max(field.min, v);
-            state[role.id][field.id] = v;
-            render();
-          });
+          card.appendChild(head);
+          card.appendChild(body);
+          panel.appendChild(card);
+          container = body;
 
-          slot.input = rangeInput;
-          slot.numberInput = numberInput;
+          if (sumEl) {
+            var moneyIds = (group.fields || [])
+              .filter(function (f) { return f.unit === 'money'; })
+              .map(function (f) { return f.id; });
+            groupSums[role.id].push({
+              compute: typeof group.sum === 'function'
+                ? group.sum
+                : function (st) { return moneyIds.reduce(function (a, id) { return a + (Number(st[id]) || 0); }, 0); },
+              el: sumEl
+            });
+          }
         }
 
-        if (margEl) {
-          slot.margEl = margEl;
-          fieldWrap.appendChild(margEl);
-        }
-        panel.appendChild(fieldWrap);
-        slots[role.id][field.id] = slot;
+        (group.fields || []).forEach(function (field) {
+          renderField(role.id, field, container);
+        });
       });
 
       panels[role.id] = panel;
@@ -332,8 +385,9 @@
     }
 
     function snapshotFields(role) {
-      var keyed = valueFields(role).filter(function (f) { return f.key; });
-      return keyed.length ? keyed : valueFields(role);
+      var all = valueFields(role);
+      var keyed = all.filter(function (f) { return f.key; });
+      return keyed.length ? keyed : all;
     }
 
     function describeSnapshot(role, snapshot) {
@@ -359,7 +413,6 @@
             slot.input.value = s[field.id];
             fillPct(slot.input);
           }
-          // Не трогаем поле, пока в нём печатают — иначе курсор прыгает в конец.
           if (slot.numberInput && document.activeElement !== slot.numberInput) {
             slot.numberInput.value = formatGrouped(s[field.id]);
           }
@@ -373,6 +426,11 @@
             slot.margEl.innerHTML = m;
           }
         }
+      });
+
+      (groupSums[role.id] || []).forEach(function (gs) {
+        var sum = gs.compute(s);
+        gs.el.textContent = sum ? fmtMoney(sum) : '—';
       });
 
       var computed = role.compute(s);

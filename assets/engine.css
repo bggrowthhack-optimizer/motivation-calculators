@@ -168,12 +168,13 @@ input:focus-visible {
 .panel-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
 
 @media (min-width: 860px) {
-  /* Раньше было 1.25fr:1fr и align-items:start — карточка ввода была и шире,
-     и (за счёт разной высоты контента) заметно выше карточки итога, пара
-     выглядела как два разных блока, а не единая раскладка. stretch тянет
-     обе карточки на высоту более высокой — низ теперь тоже на одном уровне. */
   .panel-grid { grid-template-columns: 1fr 1fr; align-items: stretch; }
   .result-card { position: sticky; top: 20px; }
+  /* При сгруппированной панели колонка ввода намного выше карточки итога —
+     не тянем итог на её высоту (иначе половина карточки — пустота), пусть
+     будет своей высоты и «липнет» при скролле. Для простых калькуляторов
+     (одна .inputs без групп) оставляем прежнее выравнивание по высоте. */
+  .panel-grid.has-groups { align-items: start; }
 }
 
 .inputs {
@@ -186,6 +187,71 @@ input:focus-visible {
   gap: 22px;
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.2s ease;
+}
+
+/* Роль с группами полей: панель — просто контейнер, каждая группа — своя
+   карточка. Так длинный список (врач Надин — ~20 полей) распадается на
+   «твои рычаги» / «отработка» / «разовые за месяц», и сотруднику видно,
+   что двигать. */
+.inputs.grouped {
+  background: none;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+  gap: 14px;
+}
+
+.group-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.group-card:not(.collapsed) .group-head { border-bottom: 1px solid var(--border); }
+.group-head[role="button"] { cursor: pointer; user-select: none; }
+.group-head[role="button"]:hover { background: var(--muted); }
+.group-head[role="button"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+.group-title-block { min-width: 0; }
+.group-title { margin: 0; font-size: 0.9375rem; font-weight: 600; }
+.group-note { margin: 3px 0 0; font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.45; }
+
+.group-head-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.group-sum {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.group-toggle {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  line-height: 20px;
+  text-align: center;
+}
+.group-toggle::before { content: "–"; }
+.group-card.collapsed .group-toggle::before { content: "+"; }
+
+.group-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 }
 
 /* Подпись — всегда отдельной строкой сверху, независимо от длины (как
@@ -338,8 +404,18 @@ input[type="range"]::-moz-range-thumb {
 
 input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: transparent; }
 
-.marginal { margin: 8px 0 0; font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.5; }
-.marginal .mono { color: var(--foreground); font-weight: 500; }
+/* Подсказка "за счёт чего вырасти" — заметный чип под слайдером, а не серая
+   строчка: это главная механика калькулятора, сотрудник должен её видеть. */
+.marginal {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--primary) 8%, var(--card));
+  border-radius: var(--radius-lg);
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+.marginal .mono { color: var(--primary); font-weight: 600; }
 
 .result-card {
   background: var(--card);

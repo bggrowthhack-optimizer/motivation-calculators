@@ -32,76 +32,98 @@
     return (p * 100).toFixed(1).replace('.', ',') + '%';
   }
 
-  // Подсказка под слайдером показателя, влияющего на процент. Показывает,
-  // сколько осталось до ближайшего порога и сколько это ₽/мес при текущей выручке.
-  function bandHint(value, band, revenue, unitGap) {
+  // Подсказка-чип под показателем, влияющим на процент: до какого значения
+  // тянуть и сколько это ₽/мес при текущей выручке.
+  function bandHint(value, band, revenue, kind) {
     if (value >= band.верх) {
-      return 'Верхний порог взят — надбавка <span class="mono">+1 п.п.</span> к проценту зафиксирована.';
+      return 'Верхний порог взят — <span class="mono">+1 п.п.</span> к проценту у тебя уже есть.';
     }
     var target = value >= band.низ ? band.верх : band.низ;
     var gap = target - value;
-    var money = 0.01 * revenue;
-    return 'До <span class="mono">' + fmtGap(target, unitGap) + '</span> осталось ' +
-      '<span class="mono">' + fmtGap(gap, unitGap) + '</span> → ещё +1 п.п. к проценту ≈ ' +
-      '<span class="mono">+' + fmtMoney(money) + '/мес</span>';
+    return 'Дотяни до <span class="mono">' + fmtBand(target, kind) + '</span> ' +
+      '(осталось ' + fmtBand(gap, kind) + ') → <span class="mono">+' + fmtMoney(0.01 * revenue) + '/мес</span>';
   }
 
-  function fmtGap(n, unit) {
-    if (unit === '%') return (Math.round(n * 10) / 10).toString().replace('.', ',') + ' %';
-    if (unit === '₽') return fmtMoney(n);
-    return n + ' ' + unit;
+  function fmtBand(n, kind) {
+    if (kind === 'percent') return (Math.round(n * 10) / 10).toString().replace('.', ',') + '%';
+    return fmtMoney(n);
   }
 
   // ── ВРАЧ (ОКЛ) ────────────────────────────────────────────────────────────
   var врач = {
     id: 'doctor',
     label: 'Врач (ОКЛ)',
-    fields: [
-      { id: 'уровень', label: 'Уровень врача', type: 'select', key: true,
-        default: 'Наставник', options: Object.keys(NORMS.врач.ставкаЧаса) },
-      { id: 'часы', label: 'Отработано часов', unit: 'count', key: true,
-        min: 0, max: 240, step: 1, default: 120,
-        marginalLabel: 'Каждый час', marginal: function (s) { return NORMS.врач.ставкаЧаса[s.уровень] || 0; } },
-
-      { label: 'Очковые линзы', type: 'heading' },
-      { id: 'выручкаЛинз', label: 'Выручка по линзам за месяц', unit: 'money', key: true,
-        min: 0, max: 2000000, step: 10000, default: 600000 },
-      { id: 'конверсия', label: 'Конверсия подбор → заказ', unit: 'percent', key: true,
-        min: 0, max: 100, step: 1, default: 100,
-        marginal: function (s) { return bandHint(s.конверсия, NORMS.врач.конверсия, s.выручкаЛинз, '%'); } },
-      { id: 'чек', label: 'Средний чек линз', unit: 'money', key: true,
-        min: 0, max: 60000, step: 500, default: 30000,
-        marginal: function (s) { return bandHint(s.чек, NORMS.врач.чек, s.выручкаЛинз, '₽'); } },
-      { id: 'миосмарт', label: 'МИОСМАРТ заказов, шт', unit: 'count', key: true,
-        min: 0, max: 40, step: 1, default: 0,
-        marginal: function (s) {
-          var m = NORMS.врач.миосмарт;
-          var bonusPP = (m.бонусПроцент * 100).toString().replace('.', ',');
-          if (s.миосмарт > m.порог) {
-            return 'Порог <span class="mono">' + m.порог + ' шт</span> пройден — бонус ' +
-              '<span class="mono">+' + bonusPP + ' п.п.</span> к проценту активен.';
-          }
-          var gap = (m.порог + 1) - s.миосмарт;
-          return 'Ещё <span class="mono">' + gap + ' шт</span> до бонуса ' +
-            '<span class="mono">+' + bonusPP + ' п.п.</span> ≈ ' +
-            '<span class="mono">+' + fmtMoney(m.бонусПроцент * s.выручкаЛинз) + '/мес</span>';
-        } },
-
-      { label: 'Прочие выплаты', type: 'heading' },
-      { id: 'выручкаПриемы', label: 'Выручка ОКЛ приёмы, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'выручкаОКТ', label: 'Выручка ОКТ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'выручкаГлазноеДно', label: 'Выручка глазное дно, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'выручкаТовары', label: 'Выручка ОКЛ товары, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'выручкаВТ', label: 'Выручка визуальная терапия, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'наставничествоЧ', label: 'Наставничество, ч', unit: 'count', slider: false, min: 0, default: 0 },
-      { id: 'чекЛист', label: 'Чек-лист выполнен', type: 'checkbox', default: false },
-      { id: 'передача', label: 'Передача пациентов', type: 'checkbox', default: false },
-      { id: 'консилиумы', label: 'Консилиумы, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'видеоотзыв', label: 'Видеоотзыв от врача, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'направлениеОбучение', label: 'Направление и обучение ОКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'подборАлкон', label: 'Подбор линз АЛКОН, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'неликвидАлкон', label: 'Неликвид АЛКОН, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'пакетОчкиМкл', label: 'Пакет очки + МКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 }
+    groups: [
+      {
+        title: 'Отработка',
+        note: 'Из этого считается оклад.',
+        fields: [
+          { id: 'уровень', label: 'Уровень врача', type: 'select', key: true,
+            default: 'Наставник', options: Object.keys(NORMS.врач.ставкаЧаса) },
+          { id: 'часы', label: 'Отработано часов', unit: 'count', key: true,
+            min: 0, max: 240, step: 1, default: 120,
+            marginalLabel: 'Каждый час', marginal: function (s) { return NORMS.врач.ставкаЧаса[s.уровень] || 0; } }
+        ]
+      },
+      {
+        title: 'Продажи линз — твои рычаги',
+        note: 'Всё, что растёт от твоей работы на приёме. Двигай ползунки — смотри, как меняется зарплата справа.',
+        fields: [
+          { id: 'выручкаЛинз', label: 'Выручка по линзам за месяц', unit: 'money', key: true,
+            min: 0, max: 2000000, step: 10000, default: 600000 },
+          { id: 'конверсия', label: 'Конверсия подбор → заказ', unit: 'percent', key: true,
+            min: 0, max: 100, step: 1, default: 100,
+            marginal: function (s) { return bandHint(s.конверсия, NORMS.врач.конверсия, s.выручкаЛинз, 'percent'); } },
+          { id: 'чек', label: 'Средний чек линз', unit: 'money', key: true,
+            min: 0, max: 60000, step: 500, default: 30000,
+            marginal: function (s) { return bandHint(s.чек, NORMS.врач.чек, s.выручкаЛинз, 'money'); } },
+          { id: 'миосмарт', label: 'МИОСМАРТ заказов, шт', unit: 'count', key: true,
+            min: 0, max: 40, step: 1, default: 0,
+            marginal: function (s) {
+              var m = NORMS.врач.миосмарт;
+              var bonusPP = (m.бонусПроцент * 100).toString().replace('.', ',');
+              if (s.миосмарт > m.порог) {
+                return 'Порог <span class="mono">' + m.порог + ' шт</span> пройден — бонус <span class="mono">+' + bonusPP + ' п.п.</span> активен.';
+              }
+              var gap = (m.порог + 1) - s.миосмарт;
+              return 'Ещё <span class="mono">' + gap + ' шт</span> до бонуса <span class="mono">+' + bonusPP + ' п.п.</span> ≈ <span class="mono">+' + fmtMoney(m.бонусПроцент * s.выручкаЛинз) + '/мес</span>';
+            } },
+          { id: 'чекЛист', label: 'Чек-лист приёма выполнен', type: 'checkbox', default: false,
+            marginal: function () { return 'Даёт <span class="mono">+' + fmtMoney(NORMS.врач.чекЛист) + '</span> к прочим выплатам.'; } },
+          { id: 'передача', label: 'Передача пациентов', type: 'checkbox', default: false,
+            marginal: function () { return 'Даёт <span class="mono">+' + fmtMoney(NORMS.врач.передача) + '</span> к прочим выплатам.'; } }
+        ]
+      },
+      {
+        title: 'Разовые за месяц',
+        note: 'Наставничество, консилиумы, доли от других видов приёма, АЛКОН. Заполняется из расчётки — если просто смотришь свой рост, оставь по нулям.',
+        collapsible: true,
+        collapsed: true,
+        sum: function (s) {
+          var N = NORMS.врач;
+          return s.наставничествоЧ * N.часНаставничества +
+            s.консилиумы + s.видеоотзыв + s.направлениеОбучение +
+            s.подборАлкон + s.неликвидАлкон + s.пакетОчкиМкл +
+            (s.выручкаПриемы + s.выручкаОКТ + s.выручкаГлазноеДно) * N.долиВыручки.диагностика +
+            s.выручкаТовары * N.долиВыручки.товары +
+            s.выручкаВТ * N.долиВыручки.визуальнаяТерапия;
+        },
+        fields: [
+          { id: 'наставничествоЧ', label: 'Наставничество, ч', unit: 'count', slider: false, min: 0, default: 0,
+            marginalLabel: 'Каждый час', marginal: function () { return NORMS.врач.часНаставничества; } },
+          { id: 'выручкаПриемы', label: 'Выручка ОКЛ приёмы, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'выручкаОКТ', label: 'Выручка ОКТ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'выручкаГлазноеДно', label: 'Выручка глазное дно, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'выручкаТовары', label: 'Выручка ОКЛ товары, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'выручкаВТ', label: 'Выручка визуальная терапия, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'консилиумы', label: 'Консилиумы, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'видеоотзыв', label: 'Видеоотзыв от врача, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'направлениеОбучение', label: 'Направление и обучение ОКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'подборАлкон', label: 'Подбор линз АЛКОН, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'неликвидАлкон', label: 'Неликвид АЛКОН, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'пакетОчкиМкл', label: 'Пакет очки + МКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 }
+        ]
+      }
     ],
     compute: function (s) {
       var N = NORMS.врач;
@@ -114,65 +136,74 @@
         (s.миосмарт > N.миосмарт.порог ? N.миосмарт.бонусПроцент : 0));
       var procОчки = pct * s.выручкаЛинз;
 
-      var диагностика = (s.выручкаПриемы + s.выручкаОКТ + s.выручкаГлазноеДно) * N.долиВыручки.диагностика;
-      var товары = s.выручкаТовары * N.долиВыручки.товары;
-      var вт = s.выручкаВТ * N.долиВыручки.визуальнаяТерапия;
       var прочее =
         (s.чекЛист ? N.чекЛист : 0) +
         (s.передача ? N.передача : 0) +
         s.наставничествоЧ * N.часНаставничества +
         s.консилиумы + s.видеоотзыв + s.направлениеОбучение +
         s.подборАлкон + s.неликвидАлкон + s.пакетОчкиМкл +
-        диагностика + товары + вт;
+        (s.выручкаПриемы + s.выручкаОКТ + s.выручкаГлазноеДно) * N.долиВыручки.диагностика +
+        s.выручкаТовары * N.долиВыручки.товары +
+        s.выручкаВТ * N.долиВыручки.визуальнаяТерапия;
 
       return {
         rows: [
-          { label: 'Оклад (' + s.часы + ' ч · ' + s.уровень + ')', value: oklad },
-          { label: '% с продаж линз (' + pctText(pct) + ')', value: procОчки },
+          { label: 'Оклад · ' + s.часы + ' ч, ' + s.уровень.toLowerCase(), value: oklad },
+          { label: '% с продаж линз · ' + pctText(pct), value: procОчки },
           { label: 'Прочие выплаты', value: прочее }
         ],
         total: oklad + procОчки + прочее,
         pct: pct
       };
     },
-    tip: function (c, s) {
-      var N = NORMS.врач;
-      if (c.pct >= N.максПроцент) {
-        return '<strong>Процент на максимуме (' + pctText(N.максПроцент) + ').</strong> Дальше зарплату двигают выручка по линзам, наставничество и доплаты за диагностику.';
-      }
-      if (c.pct <= N.минПроцент) {
-        return '<strong>Процент на минимуме (' + pctText(N.минПроцент) + ').</strong> Конверсия и средний чек ниже порогов — это первое, что стоит подтянуть.';
-      }
-      return 'Каждый показатель, перешагнувший верхний порог, добавляет <strong>+1 п.п.</strong> к проценту — при выручке ' + fmtMoney(s.выручкаЛинз) + ' это ' + fmtMoney(0.01 * s.выручкаЛинз) + '/мес.';
-    }
+    tip: function (c, s) { return bestMove(NORMS.врач, s, s.выручкаЛинз, s.конверсия, s.чек, s.миосмарт, c.pct); }
   };
 
   // ── КОНСУЛЬТАНТ (очки) ────────────────────────────────────────────────────
   var консультант = {
     id: 'consultant',
     label: 'Консультант (очки)',
-    fields: [
-      { id: 'часы', label: 'Отработано часов', unit: 'count', key: true,
-        min: 0, max: 240, step: 1, default: 170,
-        marginalLabel: 'Каждый час', marginal: function () { return NORMS.консультант.ставкаЧаса; } },
-
-      { label: 'Продажа очков', type: 'heading' },
-      { id: 'выручкаОчков', label: 'Выручка по очкам за месяц', unit: 'money', key: true,
-        min: 0, max: 1500000, step: 10000, default: 500000 },
-      { id: 'конверсия', label: 'Конверсия рецепт → заказ', unit: 'percent', key: true,
-        min: 0, max: 100, step: 1, default: 89,
-        marginal: function (s) { return bandHint(s.конверсия, NORMS.консультант.конверсия, s.выручкаОчков, '%'); } },
-      { id: 'чек', label: 'Средний чек очков', unit: 'money', key: true,
-        min: 0, max: 80000, step: 500, default: 30000,
-        marginal: function (s) { return bandHint(s.чек, NORMS.консультант.чек, s.выручкаОчков, '₽'); } },
-
-      { label: 'Прочие выплаты', type: 'heading' },
-      { id: 'планОтзывам', label: 'План по отзывам выполнен', type: 'checkbox', default: true },
-      { id: 'старшийСмены', label: 'Старший смены', type: 'checkbox', default: false },
-      { id: 'доплатаСзо', label: 'Доплата за солнцезащитные очки, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'доплатаМкл', label: 'Доплата за МКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'доплатаОкл', label: 'Доплата за ОКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
-      { id: 'депремирование', label: 'Депремирование, ₽ (вычитается)', unit: 'money', slider: false, min: 0, default: 0 }
+    groups: [
+      {
+        title: 'Отработка',
+        note: 'Из этого считается оклад.',
+        fields: [
+          { id: 'часы', label: 'Отработано часов', unit: 'count', key: true,
+            min: 0, max: 240, step: 1, default: 170,
+            marginalLabel: 'Каждый час', marginal: function () { return NORMS.консультант.ставкаЧаса; } }
+        ]
+      },
+      {
+        title: 'Продажи очков — твои рычаги',
+        note: 'Что растёт от твоей работы с клиентом. Двигай ползунки — смотри зарплату справа.',
+        fields: [
+          { id: 'выручкаОчков', label: 'Выручка по очкам за месяц', unit: 'money', key: true,
+            min: 0, max: 1500000, step: 10000, default: 500000 },
+          { id: 'конверсия', label: 'Конверсия рецепт → заказ', unit: 'percent', key: true,
+            min: 0, max: 100, step: 1, default: 89,
+            marginal: function (s) { return bandHint(s.конверсия, NORMS.консультант.конверсия, s.выручкаОчков, 'percent'); } },
+          { id: 'чек', label: 'Средний чек очков', unit: 'money', key: true,
+            min: 0, max: 80000, step: 500, default: 30000,
+            marginal: function (s) { return bandHint(s.чек, NORMS.консультант.чек, s.выручкаОчков, 'money'); } },
+          { id: 'планОтзывам', label: 'План по отзывам выполнен', type: 'checkbox', default: true,
+            marginal: function () { return 'Даёт <span class="mono">+' + fmtMoney(NORMS.консультант.планОтзывам) + '</span> к прочим выплатам.'; } },
+          { id: 'старшийСмены', label: 'Старший смены', type: 'checkbox', default: false,
+            marginal: function () { return 'Даёт <span class="mono">+' + fmtMoney(NORMS.консультант.старшийСмены) + '</span> к прочим выплатам.'; } }
+        ]
+      },
+      {
+        title: 'Разовые за месяц',
+        note: 'Доплаты за СЗО / МКЛ / ОКЛ и депремирование — из расчётки.',
+        collapsible: true,
+        collapsed: true,
+        sum: function (s) { return s.доплатаСзо + s.доплатаМкл + s.доплатаОкл - s.депремирование; },
+        fields: [
+          { id: 'доплатаСзо', label: 'Доплата за солнцезащитные очки, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'доплатаМкл', label: 'Доплата за МКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'доплатаОкл', label: 'Доплата за ОКЛ, ₽', unit: 'money', slider: false, min: 0, default: 0 },
+          { id: 'депремирование', label: 'Депремирование, ₽ (вычитается)', unit: 'money', slider: false, min: 0, default: 0 }
+        ]
+      }
     ],
     compute: function (s) {
       var N = NORMS.консультант;
@@ -188,13 +219,11 @@
         s.доплатаСзо + s.доплатаМкл + s.доплатаОкл;
 
       var rows = [
-        { label: 'Оклад (' + s.часы + ' ч)', value: oklad },
-        { label: '% с продаж очков (' + pctText(pct) + ')', value: procОчки },
+        { label: 'Оклад · ' + s.часы + ' ч', value: oklad },
+        { label: '% с продаж очков · ' + pctText(pct), value: procОчки },
         { label: 'Прочие выплаты', value: прочее }
       ];
-      if (s.депремирование > 0) {
-        rows.push({ label: 'Депремирование', value: -s.депремирование });
-      }
+      if (s.депремирование > 0) rows.push({ label: 'Депремирование', value: -s.депремирование });
 
       return {
         rows: rows,
@@ -202,30 +231,43 @@
         pct: pct
       };
     },
-    tip: function (c, s) {
-      var N = NORMS.консультант;
-      if (c.pct >= N.максПроцент) {
-        return '<strong>Процент на максимуме (' + pctText(N.максПроцент) + ').</strong> Дальше зарплату двигают выручка по очкам и доплаты за МКЛ / ОКЛ / СЗО.';
-      }
-      if (c.pct <= N.минПроцент) {
-        return '<strong>Процент на минимуме (' + pctText(N.минПроцент) + ').</strong> Конверсия ниже ' + N.конверсия.низ + '% или чек ниже ' + fmtMoney(N.чек.низ) + ' — с них и начинать.';
-      }
-      return 'Верхний порог по конверсии и по чеку даёт по <strong>+1 п.п.</strong> к проценту — при выручке ' + fmtMoney(s.выручкаОчков) + ' это ' + fmtMoney(0.01 * s.выручкаОчков) + '/мес за каждый.';
-    }
+    tip: function (c, s) { return bestMove(NORMS.консультант, s, s.выручкаОчков, s.конверсия, s.чек, null, c.pct); }
   };
+
+  // Одна самая денежная подсказка «что подтянуть» — для карточки итога.
+  function bestMove(N, s, revenue, conv, check, mio, pct) {
+    var moves = [];
+    if (conv < N.конверсия.верх) {
+      var tc = conv >= N.конверсия.низ ? N.конверсия.верх : N.конверсия.низ;
+      moves.push({ what: 'конверсию до ' + tc + '%', money: 0.01 * revenue });
+    }
+    if (check < N.чек.верх) {
+      var tk = check >= N.чек.низ ? N.чек.верх : N.чек.низ;
+      moves.push({ what: 'средний чек до ' + fmtMoney(tk), money: 0.01 * revenue });
+    }
+    if (mio !== null && N.миосмарт && mio <= N.миосмарт.порог) {
+      moves.push({ what: 'МИОСМАРТ до ' + (N.миосмарт.порог + 1) + ' шт', money: N.миосмарт.бонусПроцент * revenue });
+    }
+    if (!moves.length) {
+      return '<strong>Процент на максимуме (' + pctText(pct) + ').</strong> Дальше зарплату двигает выручка и разовые доплаты.';
+    }
+    moves.sort(function (a, b) { return b.money - a.money; });
+    var m = moves[0];
+    return '<strong>Быстрее всего:</strong> подтяни ' + m.what + ' → примерно <strong>+' + fmtMoney(m.money) + '/мес</strong>.';
+  }
 
   MotivationCalculator.init({
     title: 'Калькулятор зарплаты',
     eyebrow: 'Надин · мотивация персонала',
     favicon: '🔬',
     theme: { accent: 'oklch(0.55 0.13 200)', accentDark: 'oklch(0.70 0.12 200)' },
-    lede: 'Выставь свои реальные показатели за месяц, зафиксируй их как точку отсчёта — а дальше двигай ползунки и смотри, на сколько меняется зарплата и что выгоднее всего подтянуть. Ничего никуда не отправляется, расчёт целиком в браузере.',
+    lede: 'Выставь свои показатели за месяц, зафиксируй их как точку отсчёта — а дальше двигай ползунки в блоке «твои рычаги» и смотри, на сколько меняется зарплата. Ничего никуда не отправляется.',
     footnotes: [
       '<strong>Зарплата = оклад + % с продаж + прочие выплаты.</strong>',
-      '<strong>Оклад:</strong> отработанные часы × ставка часа. Врач — по уровню: молодой специалист ' + fmtMoney(NORMS.врач.ставкаЧаса['Молодой специалист']) + '/ч, опытный ' + fmtMoney(NORMS.врач.ставкаЧаса['Опытный врач']) + '/ч, наставник ' + fmtMoney(NORMS.врач.ставкаЧаса['Наставник']) + '/ч. Консультант — ' + fmtMoney(NORMS.консультант.ставкаЧаса) + '/ч.',
-      '<strong>% с продаж:</strong> базовые ' + pctText(NORMS.врач.базовыйПроцент) + ', затем ± по показателям. Врач: конверсия ≥ ' + NORMS.врач.конверсия.верх + '% → +1 п.п., < ' + NORMS.врач.конверсия.низ + '% → −1 п.п.; средний чек ≥ ' + fmtMoney(NORMS.врач.чек.верх) + ' → +1 п.п., < ' + fmtMoney(NORMS.врач.чек.низ) + ' → −1 п.п.; МИОСМАРТ > ' + NORMS.врач.миосмарт.порог + ' шт → +' + (NORMS.врач.миосмарт.бонусПроцент * 100).toString().replace('.', ',') + ' п.п. Консультант: конверсия ≥ ' + NORMS.консультант.конверсия.верх + '% → +1 п.п., < ' + NORMS.консультант.конверсия.низ + '% → −1 п.п.; средний чек ≥ ' + fmtMoney(NORMS.консультант.чек.верх) + ' → +1 п.п., < ' + fmtMoney(NORMS.консультант.чек.низ) + ' → −1 п.п. Итоговый % ограничен коридором ' + pctText(NORMS.врач.минПроцент) + '–' + pctText(NORMS.врач.максПроцент) + '.',
-      '<strong>Прочие выплаты врача:</strong> чек-лист ' + fmtMoney(NORMS.врач.чекЛист) + ', передача пациентов ' + fmtMoney(NORMS.врач.передача) + ', наставничество ' + fmtMoney(NORMS.врач.часНаставничества) + '/ч; доля от выручки: ОКЛ-диагностика (приёмы + ОКТ + глазное дно) ' + (NORMS.врач.долиВыручки.диагностика * 100) + '%, ОКЛ-товары ' + (NORMS.врач.долиВыручки.товары * 100) + '%, визуальная терапия ' + (NORMS.врач.долиВыручки.визуальнаяТерапия * 100) + '%; консилиумы, видеоотзыв, АЛКОН-пакеты и т.д. — суммой из отчёта.',
-      '<strong>Прочие выплаты консультанта:</strong> план по отзывам ' + fmtMoney(NORMS.консультант.планОтзывам) + ', старший смены ' + fmtMoney(NORMS.консультант.старшийСмены) + ', доплаты за СЗО / МКЛ / ОКЛ — суммой; депремирование вычитается из итога.'
+      '<strong>Оклад:</strong> часы × ставка часа. Врач по уровню — молодой ' + fmtMoney(NORMS.врач.ставкаЧаса['Молодой специалист']) + '/ч, опытный ' + fmtMoney(NORMS.врач.ставкаЧаса['Опытный врач']) + '/ч, наставник ' + fmtMoney(NORMS.врач.ставкаЧаса['Наставник']) + '/ч. Консультант — ' + fmtMoney(NORMS.консультант.ставкаЧаса) + '/ч.',
+      '<strong>% с продаж:</strong> базовые ' + pctText(NORMS.врач.базовыйПроцент) + ', коридор ' + pctText(NORMS.врач.минПроцент) + '–' + pctText(NORMS.врач.максПроцент) + '. Врач: конверсия ≥ ' + NORMS.врач.конверсия.верх + '% → +1 п.п., < ' + NORMS.врач.конверсия.низ + '% → −1 п.п.; чек ≥ ' + fmtMoney(NORMS.врач.чек.верх) + ' → +1 п.п., < ' + fmtMoney(NORMS.врач.чек.низ) + ' → −1 п.п.; МИОСМАРТ > ' + NORMS.врач.миосмарт.порог + ' шт → +' + (NORMS.врач.миосмарт.бонусПроцент * 100).toString().replace('.', ',') + ' п.п. Консультант: конверсия ≥ ' + NORMS.консультант.конверсия.верх + '% и чек ≥ ' + fmtMoney(NORMS.консультант.чек.верх) + ' — по +1 п.п.',
+      '<strong>Прочие выплаты врача:</strong> чек-лист ' + fmtMoney(NORMS.врач.чекЛист) + ', передача пациентов ' + fmtMoney(NORMS.врач.передача) + ', наставничество ' + fmtMoney(NORMS.врач.часНаставничества) + '/ч; доля от выручки: диагностика (приёмы + ОКТ + глазное дно) ' + (NORMS.врач.долиВыручки.диагностика * 100) + '%, товары ' + (NORMS.врач.долиВыручки.товары * 100) + '%, визуальная терапия ' + (NORMS.врач.долиВыручки.визуальнаяТерапия * 100) + '%.',
+      '<strong>Прочие выплаты консультанта:</strong> план по отзывам ' + fmtMoney(NORMS.консультант.планОтзывам) + ', старший смены ' + fmtMoney(NORMS.консультант.старшийСмены) + '; доплаты за СЗО / МКЛ / ОКЛ — суммой; депремирование вычитается.'
     ],
     roles: [врач, консультант]
   });
