@@ -275,11 +275,11 @@
         sum: function (s) { return часыПомощника(s) * NORMS.помощник.ставкаЧаса; },
         fields: [
           { id: 'длинныеВыходы', label: 'Длинных выходов (Пн/Вт/Чт/Пт, 10–19)', unit: 'count', key: true,
-            slider: false, min: 0, max: 22, step: 1, default: 17,
+            min: 0, max: 22, step: 1, default: 17,
             marginalLabel: 'Каждый выход',
             marginal: function () { return NORMS.помощник.часыДлинного * NORMS.помощник.ставкаЧаса; } },
           { id: 'короткиеВыходы', label: 'Коротких выходов (Ср/Сб, 10–14)', unit: 'count', key: true,
-            slider: false, min: 0, max: 12, step: 1, default: 9,
+            min: 0, max: 12, step: 1, default: 9,
             marginalLabel: 'Каждый выход',
             marginal: function () { return NORMS.помощник.часыКороткого * NORMS.помощник.ставкаЧаса; } },
           { id: 'допЧасы', label: 'Дополнительные часы (замены, переработка), ч', unit: 'count',
