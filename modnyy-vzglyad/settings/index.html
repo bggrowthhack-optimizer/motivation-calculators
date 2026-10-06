@@ -110,11 +110,6 @@
   var defaults = API.DEFAULT_NORMS;
   var current = API.load();
 
-  var ROLES = [
-    { key: 'консультант', title: 'Консультант' },
-    { key: 'оптометрист', title: 'Оптометрист' }
-  ];
-
   var inputs = [];   // {get:()=>value, set:(v), isDefault:()=>bool, path}
   var jsonBox = document.getElementById('json');
 
@@ -134,24 +129,24 @@
 
   function markChanged(el, isDef) { el.classList.toggle('changed', !isDef()); refreshJson(); }
 
-  function moneyRow(box, label, hint, roleKey, field, defVal) {
+  function moneyRow(box, label, hint, field, defVal) {
     var wrap = document.createElement('div'); wrap.className = 'norm-row';
     var lab = document.createElement('label'); lab.textContent = label;
     if (hint) { var h = document.createElement('span'); h.className = 'hint'; h.textContent = hint; lab.appendChild(h); }
     var iw = document.createElement('div'); iw.className = 'norm-input-wrap';
     var inp = document.createElement('input'); inp.className = 'norm-input'; inp.type = 'text'; inp.inputMode = 'decimal';
-    inp.value = fmtNum(getPath(current, [roleKey].concat(field)));
+    inp.value = fmtNum(getPath(current, field));
     var u = document.createElement('span'); u.className = 'norm-unit'; u.textContent = '₽';
     iw.appendChild(inp); iw.appendChild(u);
     var isDef = function () { var v = parseNum(inp.value); return v !== null && v === defVal; };
     inp.addEventListener('input', function () { markChanged(inp, isDef); });
-    inputs.push({ apply: function (o) { var v = parseNum(inp.value); setPath(o, [roleKey].concat(field), v === null ? defVal : v); } });
+    inputs.push({ apply: function (o) { var v = parseNum(inp.value); setPath(o, field, v === null ? defVal : v); } });
     markChanged(inp, isDef);
     wrap.appendChild(lab); wrap.appendChild(iw); box.appendChild(wrap);
   }
 
-  function kpiRows(box, roleKey) {
-    var d = defaults[roleKey].kpi, c = current[roleKey].kpi;
+  function kpiRows(box) {
+    var d = defaults.kpi, c = current.kpi;
 
     // label
     var r1 = document.createElement('div'); r1.className = 'norm-row';
@@ -162,7 +157,7 @@
     labInp.value = c.label;
     iw1.appendChild(labInp); r1.appendChild(iw1); box.appendChild(r1);
     labInp.addEventListener('input', function () { markChanged(labInp, function () { return labInp.value === d.label; }); });
-    inputs.push({ apply: function (o) { o[roleKey].kpi.label = labInp.value || d.label; } });
+    inputs.push({ apply: function (o) { o.kpi.label = labInp.value || d.label; } });
 
     // unit
     var r2 = document.createElement('div'); r2.className = 'norm-row';
@@ -172,7 +167,7 @@
     sel.value = c.unit;
     r2.appendChild(sel); box.appendChild(r2);
     sel.addEventListener('change', function () { markChanged(sel, function () { return sel.value === d.unit; }); refreshJson(); });
-    inputs.push({ apply: function (o) { o[roleKey].kpi.unit = sel.value; } });
+    inputs.push({ apply: function (o) { o.kpi.unit = sel.value; } });
 
     // ступени (порог → премия), по аналогии с грейдами
     var wrap = document.createElement('div'); wrap.className = 'grades';
@@ -200,7 +195,7 @@
       inputs.push({ apply: function (o) {
         var p = parseNum(por.value); p = p === null ? (d.ступени[i] ? d.ступени[i].порог : 0) : p;
         var pr = parseNum(prm.value); pr = pr === null ? (d.ступени[i] ? d.ступени[i].премия : 0) : pr;
-        o[roleKey].kpi.ступени[i] = { порог: p, премия: pr };
+        o.kpi.ступени[i] = { порог: p, премия: pr };
       } });
 
       row.appendChild(name); row.appendChild(por); row.appendChild(prm);
@@ -211,8 +206,8 @@
     box.appendChild(wrap);
   }
 
-  function gradesEditor(box, roleKey) {
-    var dG = defaults[roleKey].грейды, cG = current[roleKey].грейды;
+  function gradesEditor(box) {
+    var dG = defaults.грейды, cG = current.грейды;
     var wrap = document.createElement('div'); wrap.className = 'grades';
 
     var head = document.createElement('div'); head.className = 'grow';
@@ -240,7 +235,7 @@
       inputs.push({ apply: function (o) {
         var p = i === 0 ? 0 : (parseNum(por.value) === null ? (dG[i] ? dG[i].порог : 0) : parseNum(por.value));
         var s = parseNum(stv.value); s = s === null ? (dG[i] ? dG[i].ставка * 100 : 0) : s;
-        o[roleKey].грейды[i] = { порог: p, ставка: Math.round(s * 10) / 1000 };
+        o.грейды[i] = { порог: p, ставка: Math.round(s * 10) / 1000 };
       } });
 
       row.appendChild(name); row.appendChild(por); row.appendChild(stv);
@@ -259,19 +254,23 @@
   }
 
   var host = document.getElementById('sections');
-  ROLES.forEach(function (role) {
-    var box = document.createElement('div'); box.className = 'section';
-    box.innerHTML = '<h2>' + role.title + '</h2><p class="sub">Ставки за смену — политика компании, сотрудник в калькуляторе вводит только число смен каждого типа. Грейды и KPI — общие для роли.</p>';
-    moneyRow(box, 'Ставка за смену в паре', 'работал с напарником', role.key, ['ставка', 'впаре'], defaults[role.key].ставка.впаре);
-    moneyRow(box, 'Ставка за смену универсалом', 'работал один за двоих', role.key, ['ставка', 'универсал'], defaults[role.key].ставка.универсал);
-    kpiRows(box, role.key);
 
-    var gh = document.createElement('h2'); gh.style.marginTop = '20px'; gh.style.fontSize = '0.875rem'; gh.textContent = 'Грейды: % от выручки по выполнению плана филиала';
-    box.appendChild(gh);
-    gradesEditor(box, role.key);
+  var ratesBox = document.createElement('div'); ratesBox.className = 'section';
+  ratesBox.innerHTML = '<h2>Ставки за смену</h2><p class="sub">Политика компании — сотрудник в калькуляторе вводит только число смен каждого типа за месяц.</p>';
+  moneyRow(ratesBox, 'Ставка за смену как оптометрист', 'работал в паре, роль — оптометрист', ['ставка', 'оптометрист'], defaults.ставка.оптометрист);
+  moneyRow(ratesBox, 'Ставка за смену как консультант', 'работал в паре, роль — консультант', ['ставка', 'консультант'], defaults.ставка.консультант);
+  moneyRow(ratesBox, 'Ставка за смену универсалом', 'работал один за двоих', ['ставка', 'универсал'], defaults.ставка.универсал);
+  host.appendChild(ratesBox);
 
-    host.appendChild(box);
-  });
+  var kpiBox = document.createElement('div'); kpiBox.className = 'section';
+  kpiBox.innerHTML = '<h2>KPI месяца</h2><p class="sub">Один показатель на всех, по ступеням.</p>';
+  kpiRows(kpiBox);
+  host.appendChild(kpiBox);
+
+  var gradesBox = document.createElement('div'); gradesBox.className = 'section';
+  gradesBox.innerHTML = '<h2>Грейды: % от выручки по выполнению плана филиала</h2><p class="sub">Один для всех.</p>';
+  gradesEditor(gradesBox);
+  host.appendChild(gradesBox);
 
   refreshJson();
 
