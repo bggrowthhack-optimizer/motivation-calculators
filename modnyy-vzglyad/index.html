@@ -37,13 +37,15 @@
   }
 
   function kpiHint(s, N) {
-    var k = N.kpi;
-    if (s.kpiЗначение >= k.план) {
-      return 'План по KPI взят — премия <span class="mono">+' + fmtMoney(k.премия) + '</span> твоя.';
+    var prem = API.kpiPremium(N.kpi.ступени, s.kpiЗначение);
+    var next = API.nextKpiStep(N.kpi.ступени, s.kpiЗначение);
+    if (!next) {
+      return 'Верхняя ступень KPI взята — премия <span class="mono">+' + fmtMoney(prem) + '</span> твоя.';
     }
-    var gap = k.план - s.kpiЗначение;
-    return 'До плана <span class="mono">' + fmtKpi(k.план, k.unit) + '</span> осталось <span class="mono">' +
-      fmtKpi(gap, k.unit) + '</span> → премия <span class="mono">+' + fmtMoney(k.премия) + '</span>';
+    var gap = next.порог - s.kpiЗначение;
+    return 'До ступени <span class="mono">' + fmtKpi(next.порог, N.kpi.unit) + '</span> осталось <span class="mono">' +
+      fmtKpi(gap, N.kpi.unit) + '</span> → премия <span class="mono">' + (prem ? fmtMoney(prem) + ' → ' : '') +
+      fmtMoney(next.премия) + '</span>';
   }
 
   function makeRole(id, label, N, planNote, kpiSliderMax) {
@@ -53,9 +55,15 @@
       groups: [
         {
           title: 'Отработка',
-          note: 'Оклад — из расчётки (зависит от стажа/грейда сотрудника).',
+          note: 'Ставка за смену — зависит от того, работал в паре или один за двоих (универсалом). Кто как работал — видно по графику смен.',
           fields: [
-            { id: 'оклад', label: 'Оклад за месяц', unit: 'money', slider: false, min: 0, default: N.оклад, key: true }
+            { id: 'сменВПаре', label: 'Смен в паре за месяц', unit: 'count', slider: true,
+              min: 0, max: 22, step: 1, default: 12, key: true,
+              marginalLabel: null,
+              marginal: function () { return 'Ставка в паре — <span class="mono">' + fmtMoney(N.ставка.впаре) + '</span>/смену.'; } },
+            { id: 'сменУниверсалом', label: 'Смен универсалом за месяц', unit: 'count', slider: true,
+              min: 0, max: 22, step: 1, default: 3, key: true,
+              marginal: function () { return 'Ставка универсала — <span class="mono">' + fmtMoney(N.ставка.универсал) + '</span>/смену.'; } }
           ]
         },
         {
@@ -67,10 +75,10 @@
             { id: 'планПроцент', label: 'Выполнение плана продаж филиала', unit: 'percent', key: true,
               min: 0, max: 140, step: 1, default: 90,
               marginal: function (s) { return gradeHint(s, N); } },
-            { id: 'kpiЗначение', label: 'KPI месяца — ' + N.kpi.label + ' (план ' + fmtKpi(N.kpi.план, N.kpi.unit) + ')',
+            { id: 'kpiЗначение', label: 'KPI месяца — ' + N.kpi.label + ' (ступени от ' + fmtKpi(N.kpi.ступени[0].порог, N.kpi.unit) + ')',
               unit: N.kpi.unit === 'percent' ? 'percent' : 'money', key: true,
               min: 0, max: kpiSliderMax, step: N.kpi.unit === 'percent' ? 1 : 500,
-              default: Math.round(N.kpi.план * 0.85),
+              default: Math.round(N.kpi.ступени[0].порог * 0.85),
               marginal: function (s) { return kpiHint(s, N); } }
           ]
         }
@@ -78,16 +86,16 @@
       compute: function (s) {
         var rate = API.gradeRate(N.грейды, s.планПроцент);
         var proc = rate * s.выручка;
-        var kpiOk = s.kpiЗначение >= N.kpi.план;
-        var kpiPrem = kpiOk ? N.kpi.премия : 0;
+        var baseShifts = s.сменВПаре * N.ставка.впаре + s.сменУниверсалом * N.ставка.универсал;
+        var kpiPrem = API.kpiPremium(N.kpi.ступени, s.kpiЗначение);
         return {
           rows: [
-            { label: 'Оклад', value: s.оклад },
+            { label: 'Смены: ' + s.сменВПаре + ' в паре × ' + fmtMoney(N.ставка.впаре) + ' + ' + s.сменУниверсалом + ' универсалом × ' + fmtMoney(N.ставка.универсал), value: baseShifts },
             { label: '% с продаж · ставка ' + pct(rate) + ' (план ' + s.планПроцент + '%)', value: proc },
-            { label: 'KPI: ' + N.kpi.label + (kpiOk ? ' — выполнен' : ' — не выполнен'), value: kpiPrem }
+            { label: 'KPI: ' + N.kpi.label + (kpiPrem ? ' — премия взята' : ' — ниже первой ступени'), value: kpiPrem }
           ],
-          total: s.оклад + proc + kpiPrem,
-          rate: rate, kpiOk: kpiOk
+          total: baseShifts + proc + kpiPrem,
+          rate: rate, baseShifts: baseShifts, kpiPrem: kpiPrem
         };
       },
       tip: function (c, s) {
@@ -99,8 +107,12 @@
             money: (ng.ставка - c.rate) * s.выручка
           });
         }
-        if (!c.kpiOk) {
-          moves.push({ what: N.kpi.label.toLowerCase() + ' до плана ' + fmtKpi(N.kpi.план, N.kpi.unit), money: N.kpi.премия });
+        var nextKpi = API.nextKpiStep(N.kpi.ступени, s.kpiЗначение);
+        if (nextKpi) {
+          moves.push({
+            what: N.kpi.label.toLowerCase() + ' до ' + fmtKpi(nextKpi.порог, N.kpi.unit),
+            money: nextKpi.премия - c.kpiPrem
+          });
         }
         if (!moves.length) {
           return '<strong>Всё на максимуме.</strong> Дальше зарплату двигает только рост личной выручки при ставке ' + pct(c.rate) + '.';
@@ -121,6 +133,13 @@
     return '<strong>' + who + ' — грейды % от выручки (по плану филиала):</strong> ' + steps.join('; ') + '.';
   }
 
+  function kpiFootnote(N, who) {
+    var steps = N.kpi.ступени.map(function (s) {
+      return 'от ' + fmtKpi(s.порог, N.kpi.unit) + ' → +' + fmtMoney(s.премия);
+    });
+    return '<strong>' + who + ' — ступени KPI (' + N.kpi.label.toLowerCase() + '):</strong> ' + steps.join('; ') + '.';
+  }
+
   var опт = NORMS.оптометрист;
   var конс = NORMS.консультант;
 
@@ -129,15 +148,17 @@
     eyebrow: 'Модный взгляд · мотивация персонала',
     favicon: '🕶️',
     theme: { accent: 'oklch(0.62 0.15 55)', accentDark: 'oklch(0.74 0.13 55)' },
-    lede: 'Зарплата = оклад + % с твоих продаж + премия за KPI месяца. Выставь свои цифры, зафиксируй точку отсчёта — и смотри, что выгоднее всего подтянуть. Ничего никуда не отправляется.',
+    lede: 'Зарплата = ставка за смены + % с твоих продаж + премия за KPI месяца. Выставь свои цифры, зафиксируй точку отсчёта — и смотри, что выгоднее всего подтянуть. Ничего никуда не отправляется.',
     footnotes: [
-      '<strong>Зарплата = оклад + % от личной выручки + премия за KPI месяца.</strong>',
+      '<strong>Зарплата = ставка за смены + % от личной выручки + премия за KPI месяца.</strong>',
+      '<strong>Ставка за смену</strong> зависит от того, как ты работал в эту смену: в паре с напарником (оптометрист и консультант отдельно) или один за двоих — универсалом. Универсал получает больше, но делает работу двоих. Ставка в паре — ' + fmtMoney(опт.ставка.впаре) + '/смену, универсалом — ' + fmtMoney(опт.ставка.универсал) + '/смену (пока одинаково для обеих ролей).',
       '<strong>% от выручки</strong> зависит от того, на сколько процентов филиал выполнил план продаж — по лестнице грейдов.',
       gradeFootnote(конс, 'Консультант'),
       gradeFootnote(опт, 'Оптометрист'),
-      '<strong>KPI месяца</strong> — один показатель, бинарно: выполнил план по нему → фикс. премия, нет → 0. Консультант: ' + конс.kpi.label + ', план ' + fmtKpi(конс.kpi.план, конс.kpi.unit) + ', премия ' + fmtMoney(конс.kpi.премия) + '. Оптометрист: ' + опт.kpi.label + ', план ' + fmtKpi(опт.kpi.план, опт.kpi.unit) + ', премия ' + fmtMoney(опт.kpi.премия) + '. KPI меняется по месяцам/кварталам.',
-      '<strong>Средний чек линз — за пару.</strong> В отчёте iTigris эта цифра выгружается за одну линзу: чтобы сравнить с планом, умножь её на два.',
-      '<strong>Черновик.</strong> Пороги KPI зафиксированы 22.09. Грейды, ставки и вес премии — предварительные (встреча 08.09), уточняются.'
+      '<strong>KPI месяца</strong> — один показатель, по ступеням: чем выше результат, тем больше премия. У обеих ролей один KPI — средний чек заказа очков (линзы + оправа), без выгоды растить только линзы отдельно от заказа.',
+      kpiFootnote(конс, 'Консультант'),
+      kpiFootnote(опт, 'Оптометрист'),
+      '<strong>Черновик.</strong> Ставки за смены и ступени KPI зафиксированы на встрече 06.10 как пример — точные цифры утверждает собственник. Грейды % от выручки — без изменений с 08.09.'
     ],
     roles: [
       makeRole('optometrist', 'Оптометрист', опт, null, опт.kpi.unit === 'percent' ? 100 : 40000),
