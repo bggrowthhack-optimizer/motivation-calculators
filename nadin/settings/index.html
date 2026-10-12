@@ -41,6 +41,22 @@
     border-top: 1px solid var(--border);
   }
   .norm-row:first-of-type { border-top: none; }
+  .norm-row-list {
+    display: block;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+  }
+  .norm-row-list label { display: block; margin-bottom: 8px; }
+  .norm-list {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    text-align: left;
+    font-family: inherit;
+    font-weight: 400;
+    resize: vertical;
+    line-height: 1.6;
+  }
   .norm-row label {
     font-size: 0.8125rem;
     color: var(--foreground);
@@ -197,11 +213,10 @@
     ] },
     { title: 'Помощник врача', rows: [
       { path: 'помощник.ставкаЧаса', label: 'Ставка часа', kind: 'rub' },
-      { path: 'помощник.часыДлинного', label: 'Длинный выход — часов', hint: 'Пн/Вт/Чт/Пт, 10–19', kind: 'num', unit: 'ч' },
-      { path: 'помощник.часыКороткого', label: 'Короткий выход — часов', hint: 'Ср/Сб, 10–14', kind: 'num', unit: 'ч' },
       { path: 'помощник.долиВыручки.визуальнаяТерапия', label: 'Доля от стоимости проведённой ВТ', hint: 'стартовое значение поля в калькуляторе — там долю можно менять на лету', kind: 'pct' },
-      { path: 'помощник.чекЛист.порог', label: 'Чек-лист — порог', hint: '% выполненных пунктов: 90 = все шесть, 83 = пять из шести', kind: 'num', unit: '%' },
+      { path: 'помощник.чекЛист.порог', label: 'Чек-лист — порог', hint: '% выполненных пунктов из списка ниже: 100 = все до единого', kind: 'num', unit: '%' },
       { path: 'помощник.чекЛист.премия', label: 'Чек-лист — премия', kind: 'rub' },
+      { path: 'помощник.чекЛист.пункты', label: 'Пункты чек-листа', hint: 'один пункт на строку — добавляй или убирай строки', kind: 'list' },
       { path: 'помощник.егисз.премия', label: 'ЕГИСЗ — премия', kind: 'rub' }
     ] }
   ];
@@ -219,14 +234,18 @@
     target[last] = value;
   }
 
-  // модель → отображаемое число
+  // модель → отображаемое значение
   function toDisplay(row, raw) {
     if (row.kind === 'pct' || row.kind === 'pp') return +(raw * 100).toFixed(4);
+    if (row.kind === 'list') return (raw || []).join('\n');
     return raw;
   }
-  // отображаемое число → модель
+  // отображаемое значение → модель
   function fromDisplay(row, shown) {
     if (row.kind === 'pct' || row.kind === 'pp') return +(shown / 100).toFixed(6);
+    if (row.kind === 'list') {
+      return String(shown).split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    }
     return shown;
   }
   function unitOf(row) {
@@ -249,6 +268,10 @@
   function collect() {
     var out = JSON.parse(JSON.stringify(API.DEFAULT_NORMS));
     inputs.forEach(function (rec) {
+      if (rec.row.kind === 'list') {
+        setPath(out, rec.row.path, fromDisplay(rec.row, rec.input.value));
+        return;
+      }
       var parsed = parseVal(rec.input.value);
       if (parsed === null) parsed = toDisplay(rec.row, rec.def);
       setPath(out, rec.row.path, fromDisplay(rec.row, parsed));
@@ -281,9 +304,31 @@
         lab.appendChild(h);
       }
 
+      var inp;
+      if (row.kind === 'list') {
+        wrap.classList.add('norm-row-list');
+        inp = document.createElement('textarea');
+        inp.className = 'norm-input norm-list';
+        inp.rows = Math.max(3, toDisplay(row, val).split('\n').length);
+        inp.value = toDisplay(row, val);
+        var rec = { row: row, input: inp, def: def };
+        function markChangedList() {
+          rec.input.classList.toggle('changed', fromDisplay(row, rec.input.value).join('\n') !== (def || []).join('\n'));
+          refreshJson();
+        }
+        inp.addEventListener('input', markChangedList);
+        inputs.push(rec);
+        markChangedList();
+
+        wrap.appendChild(lab);
+        wrap.appendChild(inp);
+        box.appendChild(wrap);
+        return;
+      }
+
       var iw = document.createElement('div');
       iw.className = 'norm-input-wrap';
-      var inp = document.createElement('input');
+      inp = document.createElement('input');
       inp.className = 'norm-input';
       inp.type = 'text';
       inp.inputMode = 'decimal';
@@ -294,14 +339,14 @@
       iw.appendChild(inp);
       iw.appendChild(u);
 
-      var rec = { row: row, input: inp, def: def };
+      var recNum = { row: row, input: inp, def: def };
       function markChanged() {
         var parsed = parseVal(inp.value);
-        rec.input.classList.toggle('changed', parsed !== null && fromDisplay(row, parsed) !== def);
+        recNum.input.classList.toggle('changed', parsed !== null && fromDisplay(row, parsed) !== def);
         refreshJson();
       }
       inp.addEventListener('input', markChanged);
-      inputs.push(rec);
+      inputs.push(recNum);
       markChanged();
 
       wrap.appendChild(lab);
@@ -327,7 +372,9 @@
   document.getElementById('reset').addEventListener('click', function () {
     API.reset();
     inputs.forEach(function (rec) {
-      rec.input.value = String(toDisplay(rec.row, rec.def)).replace('.', ',');
+      rec.input.value = rec.row.kind === 'list'
+        ? toDisplay(rec.row, rec.def)
+        : String(toDisplay(rec.row, rec.def)).replace('.', ',');
       rec.input.classList.remove('changed');
     });
     refreshJson();
