@@ -79,7 +79,7 @@
     <div class="hero">
       <p class="eyebrow">Семейная оптика · мотивация персонала</p>
       <h1>Нормы расчёта</h1>
-      <p class="lede">Оклад, грейды % от выручки по плану филиала, норма прозвона базы, ограничитель по чеку. Меняешь → «Сохранить» → калькулятор в этом браузере считает по-новому.</p>
+      <p class="lede">Оклад, грейды % от выручки по плану филиала, норма записей из базы (±ставка), ограничитель по чеку. Меняешь → «Сохранить» → калькулятор в этом браузере считает по-новому.</p>
     </div>
 
     <p class="note">
@@ -202,11 +202,27 @@
   gradesEditor(gradesBox);
   host.appendChild(gradesBox);
 
-  var prozvonBox = document.createElement('div'); prozvonBox.className = 'section';
-  prozvonBox.innerHTML = '<h2>Норма прозвона базы</h2><p class="sub">Личная норма консультанта — выполнено/не выполнено, без градаций.</p>';
-  normRow(prozvonBox, 'Норма звонков в месяц', 'проверяется по CRM/телефонии', ['прозвон', 'норма'], defaults.прозвон.норма, 'шт');
-  normRow(prozvonBox, 'Премия за выполнение нормы', 'фиксированная сумма, если норма выполнена', ['прозвон', 'премия'], defaults.прозвон.премия, '₽');
-  host.appendChild(prozvonBox);
+  var zapisiBox = document.createElement('div'); zapisiBox.className = 'section';
+  zapisiBox.innerHTML = '<h2>Норма записей из базы</h2><p class="sub">Личная норма консультанта — выполнена/не выполнена, без градаций. Влияет на ставку в обе стороны.</p>';
+  normRow(zapisiBox, 'Норма записей в месяц', 'сколько клиентов из базы нужно записать на приём, проверяется по CRM', ['записи', 'норма'], defaults.записи.норма, 'шт');
+  (function () {
+    var defPct = Math.round(defaults.записи.надбавка * 1000) / 10;
+    var wrap = document.createElement('div'); wrap.className = 'norm-row';
+    var lab = document.createElement('label'); lab.textContent = 'Надбавка к ставке';
+    var h = document.createElement('span'); h.className = 'hint'; h.textContent = 'норма выполнена — плюс эта величина, не выполнена — минус';
+    lab.appendChild(h);
+    var iw = document.createElement('div'); iw.className = 'norm-input-wrap';
+    var inp = document.createElement('input'); inp.className = 'norm-input'; inp.type = 'text'; inp.inputMode = 'decimal';
+    inp.value = fmtNum(Math.round(current.записи.надбавка * 1000) / 10);
+    var u = document.createElement('span'); u.className = 'norm-unit'; u.textContent = 'п.п.';
+    iw.appendChild(inp); iw.appendChild(u);
+    var isDef = function () { var v = parseNum(inp.value); return v !== null && v === defPct; };
+    inp.addEventListener('input', function () { markChanged(inp, isDef); });
+    inputs.push({ apply: function (o) { var v = parseNum(inp.value); v = v === null ? defPct : v; o.записи.надбавка = Math.round(v * 10) / 1000; } });
+    markChanged(inp, isDef);
+    wrap.appendChild(lab); wrap.appendChild(iw); zapisiBox.appendChild(wrap);
+  })();
+  host.appendChild(zapisiBox);
 
   var checkBox = document.createElement('div'); checkBox.className = 'section';
   checkBox.innerHTML = '<h2>Ограничитель по среднему чеку</h2><p class="sub">Не отдельная премия — урезает премию за план, если чек ниже порога.</p>';
