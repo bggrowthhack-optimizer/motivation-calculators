@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Семейная оптика — нормы</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/engine.css">
+<style>
+  .app { max-width: 760px; }
+  .note {
+    margin: 0; font-size: 0.8125rem; color: var(--muted-foreground);
+    background: color-mix(in oklab, var(--info) 10%, var(--card));
+    border-radius: var(--radius-lg); padding: 12px 14px; line-height: 1.5;
+  }
+  .note strong { color: var(--foreground); }
+  .section {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-xl); padding: 22px; box-shadow: var(--shadow-sm);
+  }
+  .section h2 { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
+  .section .sub { margin: 0 0 16px; font-size: 0.75rem; color: var(--muted-foreground); }
+  .norm-row {
+    display: grid; grid-template-columns: 1fr 150px; align-items: center; gap: 12px;
+    padding: 9px 0; border-top: 1px solid var(--border);
+  }
+  .norm-row:first-of-type { border-top: none; }
+  .norm-row label { font-size: 0.8125rem; }
+  .norm-row .hint { display: block; font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 2px; }
+  .norm-input-wrap { position: relative; }
+  .norm-input {
+    width: 100%; height: 36px; padding: 0 34px 0 10px;
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--background); color: var(--foreground);
+    font: inherit; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.875rem; font-weight: 600; text-align: right;
+  }
+  .norm-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 20%, transparent); }
+  .norm-input.changed { border-color: var(--good); background: color-mix(in oklab, var(--good) 12%, var(--background)); }
+  .norm-unit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; color: var(--muted-foreground); pointer-events: none; }
+
+  .grades { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  .grades .grow {
+    display: grid; grid-template-columns: 1fr 110px 110px; gap: 10px; align-items: center;
+    padding: 9px 12px; border-top: 1px solid var(--border);
+  }
+  .grades .grow:first-child { border-top: none; background: var(--muted); font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
+  .grades .glabel { font-size: 0.8125rem; }
+  .grades input {
+    width: 100%; height: 32px; padding: 0 8px; text-align: right;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--background);
+    color: var(--foreground); font: inherit; font-family: ui-monospace, Menlo, monospace; font-size: 0.8125rem; font-weight: 600;
+  }
+  .grades input:focus { outline: none; border-color: var(--primary); }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 4px; }
+  .actions button {
+    font: inherit; font-weight: 500; font-size: 0.8125rem; height: 40px; padding: 0 18px;
+    border-radius: var(--radius-lg); cursor: pointer; border: 1px solid var(--border);
+    background: var(--card); color: var(--foreground);
+  }
+  .actions button.primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); box-shadow: var(--shadow-sm); }
+  .actions button:active { transform: scale(0.98); }
+  .status { font-size: 0.8125rem; color: var(--excellent-text); font-weight: 500; }
+  .status:empty { display: none; }
+  textarea.json {
+    width: 100%; min-height: 120px; margin-top: 12px; padding: 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--background); color: var(--foreground);
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.75rem; line-height: 1.5; resize: vertical;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="app">
+    <div class="hero">
+      <p class="eyebrow">Семейная оптика · мотивация персонала</p>
+      <h1>Нормы расчёта</h1>
+      <p class="lede">Оклад, вес за работу с базой, грейды % от выручки, ограничитель по чеку. Меняешь → «Сохранить» → калькулятор в этом браузере считает по-новому.</p>
+    </div>
+
+    <p class="note">
+      <strong>Важно:</strong> правки сохраняются только в этом браузере (у статического сайта нет общего хранилища).
+      Консультанты у себя видят значения по умолчанию. Чтобы новые нормы стали боевыми для всех — передай JSON снизу
+      разработчику, он впишет их в код и задеплоит.
+    </p>
+
+    <div id="sections"></div>
+
+    <div class="section">
+      <div class="actions">
+        <button type="button" class="primary" id="save">Сохранить</button>
+        <button type="button" id="reset">Сбросить к значениям по умолчанию</button>
+        <button type="button" id="copy">Скопировать JSON</button>
+        <span class="status" id="status"></span>
+      </div>
+      <textarea class="json" id="json" readonly aria-label="JSON норм"></textarea>
+    </div>
+  </div>
+</div>
+
+<script src="../norms.js"></script>
+<script>
+(function () {
+  var API = window.SO_NORMS;
+  var defaults = API.DEFAULT_NORMS;
+  var current = API.load();
+
+  var inputs = [];   // {apply: (out)=>void}
+  var jsonBox = document.getElementById('json');
+
+  function parseNum(raw) {
+    var v = parseFloat(String(raw).replace(/\s/g, '').replace(',', '.'));
+    return isNaN(v) ? null : v;
+  }
+  function fmtNum(n) { return String(n).replace('.', ','); }
+
+  function collect() {
+    var out = JSON.parse(JSON.stringify(API.DEFAULT_NORMS));
+    inputs.forEach(function (f) { f.apply(out); });
+    return out;
+  }
+  function refreshJson() { jsonBox.value = JSON.stringify(collect(), null, 2); }
+  function markChanged(el, isDef) { el.classList.toggle('changed', !isDef()); refreshJson(); }
+
+  // Универсальная строка-норма: unit — '₽' | '%' | '×' | '' (пусто — без суффикса).
+  function normRow(box, label, hint, field, defVal, unit) {
+    var wrap = document.createElement('div'); wrap.className = 'norm-row';
+    var lab = document.createElement('label'); lab.textContent = label;
+    if (hint) { var h = document.createElement('span'); h.className = 'hint'; h.textContent = hint; lab.appendChild(h); }
+    var iw = document.createElement('div'); iw.className = 'norm-input-wrap';
+    var inp = document.createElement('input'); inp.className = 'norm-input'; inp.type = 'text'; inp.inputMode = 'decimal';
+    inp.value = fmtNum(getPath(current, field));
+    if (unit) { var u = document.createElement('span'); u.className = 'norm-unit'; u.textContent = unit; iw.appendChild(inp); iw.appendChild(u); }
+    else { iw.appendChild(inp); }
+    var isDef = function () { var v = parseNum(inp.value); return v !== null && v === defVal; };
+    inp.addEventListener('input', function () { markChanged(inp, isDef); });
+    inputs.push({ apply: function (o) { var v = parseNum(inp.value); setPath(o, field, v === null ? defVal : v); } });
+    markChanged(inp, isDef);
+    wrap.appendChild(lab); wrap.appendChild(iw); box.appendChild(wrap);
+  }
+
+  function gradesEditor(box) {
+    var dG = defaults.грейды, cG = current.грейды;
+    var wrap = document.createElement('div'); wrap.className = 'grades';
+
+    var head = document.createElement('div'); head.className = 'grow';
+    head.innerHTML = '<span>Грейд</span><span style="text-align:right">Взвешенный план, от %</span><span style="text-align:right">Ставка %</span>';
+    wrap.appendChild(head);
+
+    cG.forEach(function (g, i) {
+      var row = document.createElement('div'); row.className = 'grow';
+      var name = document.createElement('span'); name.className = 'glabel';
+      name.textContent = i === 0 ? 'Базовая (ниже 1-го порога)' : 'Грейд ' + (i + 1);
+      var por = document.createElement('input'); por.type = 'text'; por.inputMode = 'decimal';
+      por.value = fmtNum(g.порог);
+      if (i === 0) { por.value = '0'; por.disabled = true; por.style.opacity = '0.5'; }
+      var stv = document.createElement('input'); stv.type = 'text'; stv.inputMode = 'decimal';
+      stv.value = fmtNum(Math.round(g.ставка * 1000) / 10);
+
+      function chk() {
+        var dp = dG[i] ? dG[i].порог : null, ds = dG[i] ? Math.round(dG[i].ставка * 1000) / 10 : null;
+        por.classList.toggle('changed', parseNum(por.value) !== dp);
+        stv.classList.toggle('changed', parseNum(stv.value) !== ds);
+        refreshJson();
+      }
+      por.addEventListener('input', chk); stv.addEventListener('input', chk);
+
+      inputs.push({ apply: function (o) {
+        var p = i === 0 ? 0 : (parseNum(por.value) === null ? (dG[i] ? dG[i].порог : 0) : parseNum(por.value));
+        var s = parseNum(stv.value); s = s === null ? (dG[i] ? dG[i].ставка * 100 : 0) : s;
+        o.грейды[i] = { порог: p, ставка: Math.round(s * 10) / 1000 };
+      } });
+
+      row.appendChild(name); row.appendChild(por); row.appendChild(stv);
+      wrap.appendChild(row);
+      chk();
+    });
+
+    box.appendChild(wrap);
+  }
+
+  function getPath(obj, keys) { return keys.reduce(function (o, k) { return o == null ? o : o[k]; }, obj); }
+  function setPath(obj, keys, val) {
+    var last = keys[keys.length - 1];
+    var t = keys.slice(0, -1).reduce(function (o, k) { if (!o[k]) o[k] = {}; return o[k]; }, obj);
+    t[last] = val;
+  }
+
+  var host = document.getElementById('sections');
+
+  var baseBox = document.createElement('div'); baseBox.className = 'section';
+  baseBox.innerHTML = '<h2>Оклад и работа с базой</h2><p class="sub">Политика компании — консультант в калькуляторе вводит только свою выручку.</p>';
+  normRow(baseBox, 'Оклад', 'фиксированная часть, не зависит от результата месяца', ['оклад'], defaults.оклад, '₽');
+  normRow(baseBox, 'Вес выручки «из базы» в плане', 'во сколько раз она весит тяжелее обычной продажи при выборе ступени грейда', ['весБазы'], defaults.весБазы, '×');
+  host.appendChild(baseBox);
+
+  var gradesBox = document.createElement('div'); gradesBox.className = 'section';
+  gradesBox.innerHTML = '<h2>Грейды: % от выручки по взвешенному выполнению плана</h2><p class="sub">Ставка умножается на реальную выручку, вес влияет только на выбор ступени.</p>';
+  gradesEditor(gradesBox);
+  host.appendChild(gradesBox);
+
+  var checkBox = document.createElement('div'); checkBox.className = 'section';
+  checkBox.innerHTML = '<h2>Ограничитель по среднему чеку</h2><p class="sub">Не отдельная премия — урезает премию за план, если чек ниже порога.</p>';
+  normRow(checkBox, 'Плановый средний чек', '', ['чек', 'план'], defaults.чек.план, '₽');
+  normRow(checkBox, 'Порог чека', 'ниже этой % от планового чека — премия урезается', ['чек', 'порогДоли'], defaults.чек.порогДоли, '%');
+  normRow(checkBox, 'Урезание премии', 'до какой % от расчётной премии урезаем при провале чека', ['чек', 'урезаниеДо'], defaults.чек.урезаниеДо, '%');
+  host.appendChild(checkBox);
+
+  refreshJson();
+
+  var status = document.getElementById('status');
+  function flash(m) { status.textContent = m; setTimeout(function () { if (status.textContent === m) status.textContent = ''; }, 2600); }
+
+  document.getElementById('save').addEventListener('click', function () {
+    flash(API.save(collect()) ? 'Сохранено — калькулятор в этом браузере считает по новым нормам.' : 'Не удалось сохранить (браузер блокирует хранилище).');
+  });
+  document.getElementById('reset').addEventListener('click', function () {
+    API.reset(); location.reload();
+  });
+  document.getElementById('copy').addEventListener('click', function () {
+    jsonBox.select();
+    if (navigator.clipboard) { navigator.clipboard.writeText(jsonBox.value).then(function () { flash('JSON скопирован.'); }, function () {}); return; }
+    var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+    flash(ok ? 'JSON скопирован.' : 'Выдели текст и скопируй вручную.');
+  });
+})();
+</script>
+</body>
+</html>
