@@ -79,7 +79,7 @@
     <div class="hero">
       <p class="eyebrow">Семейная оптика · мотивация персонала</p>
       <h1>Нормы расчёта</h1>
-      <p class="lede">Оклад, вес за работу с базой, грейды % от выручки, ограничитель по чеку. Меняешь → «Сохранить» → калькулятор в этом браузере считает по-новому.</p>
+      <p class="lede">Оклад, грейды % от личной выручки, ступени надбавки за возврат из базы по сети, ограничитель по чеку. Меняешь → «Сохранить» → калькулятор в этом браузере считает по-новому.</p>
     </div>
 
     <p class="note">
@@ -126,7 +126,7 @@
   function refreshJson() { jsonBox.value = JSON.stringify(collect(), null, 2); }
   function markChanged(el, isDef) { el.classList.toggle('changed', !isDef()); refreshJson(); }
 
-  // Универсальная строка-норма: unit — '₽' | '%' | '×' | '' (пусто — без суффикса).
+  // Универсальная строка-норма: unit — '₽' | '%' | '' (пусто — без суффикса).
   function normRow(box, label, hint, field, defVal, unit) {
     var wrap = document.createElement('div'); wrap.className = 'norm-row';
     var lab = document.createElement('label'); lab.textContent = label;
@@ -143,18 +143,19 @@
     wrap.appendChild(lab); wrap.appendChild(iw); box.appendChild(wrap);
   }
 
-  function gradesEditor(box) {
-    var dG = defaults.грейды, cG = current.грейды;
+  // Редактор лестницы ступеней {порог, ставка} — общий для грейдов и надбавки за базу.
+  function stepsEditor(box, rootKey, colLabel1, colLabel2, firstRowLabel) {
+    var dG = defaults[rootKey], cG = current[rootKey];
     var wrap = document.createElement('div'); wrap.className = 'grades';
 
     var head = document.createElement('div'); head.className = 'grow';
-    head.innerHTML = '<span>Грейд</span><span style="text-align:right">Взвешенный план, от %</span><span style="text-align:right">Ставка %</span>';
+    head.innerHTML = '<span>Ступень</span><span style="text-align:right">' + colLabel1 + '</span><span style="text-align:right">' + colLabel2 + '</span>';
     wrap.appendChild(head);
 
     cG.forEach(function (g, i) {
       var row = document.createElement('div'); row.className = 'grow';
       var name = document.createElement('span'); name.className = 'glabel';
-      name.textContent = i === 0 ? 'Базовая (ниже 1-го порога)' : 'Грейд ' + (i + 1);
+      name.textContent = i === 0 ? firstRowLabel : 'Ступень ' + (i + 1);
       var por = document.createElement('input'); por.type = 'text'; por.inputMode = 'decimal';
       por.value = fmtNum(g.порог);
       if (i === 0) { por.value = '0'; por.disabled = true; por.style.opacity = '0.5'; }
@@ -172,7 +173,7 @@
       inputs.push({ apply: function (o) {
         var p = i === 0 ? 0 : (parseNum(por.value) === null ? (dG[i] ? dG[i].порог : 0) : parseNum(por.value));
         var s = parseNum(stv.value); s = s === null ? (dG[i] ? dG[i].ставка * 100 : 0) : s;
-        o.грейды[i] = { порог: p, ставка: Math.round(s * 10) / 1000 };
+        o[rootKey][i] = { порог: p, ставка: Math.round(s * 10) / 1000 };
       } });
 
       row.appendChild(name); row.appendChild(por); row.appendChild(stv);
@@ -193,18 +194,22 @@
   var host = document.getElementById('sections');
 
   var baseBox = document.createElement('div'); baseBox.className = 'section';
-  baseBox.innerHTML = '<h2>Оклад и работа с базой</h2><p class="sub">Политика компании — консультант в калькуляторе вводит только свою выручку.</p>';
-  normRow(baseBox, 'Оклад', 'фиксированная часть, не зависит от результата месяца', ['оклад'], defaults.оклад, '₽');
-  normRow(baseBox, 'Вес выручки «из базы» в плане', 'во сколько раз она весит тяжелее обычной продажи при выборе ступени грейда', ['весБазы'], defaults.весБазы, '×');
+  baseBox.innerHTML = '<h2>Оклад</h2><p class="sub">Политика компании — фиксированная часть.</p>';
+  normRow(baseBox, 'Оклад', 'не зависит от результата месяца', ['оклад'], defaults.оклад, '₽');
   host.appendChild(baseBox);
 
   var gradesBox = document.createElement('div'); gradesBox.className = 'section';
-  gradesBox.innerHTML = '<h2>Грейды: % от выручки по взвешенному выполнению плана</h2><p class="sub">Ставка умножается на реальную выручку, вес влияет только на выбор ступени.</p>';
-  gradesEditor(gradesBox);
+  gradesBox.innerHTML = '<h2>Грейды: % от личной выручки по личному плану</h2><p class="sub">Личный показатель консультанта.</p>';
+  stepsEditor(gradesBox, 'грейды', 'Личный план, от %', 'Ставка %', 'Базовая (ниже 1-го порога)');
   host.appendChild(gradesBox);
 
+  var baseStepsBox = document.createElement('div'); baseStepsBox.className = 'section';
+  baseStepsBox.innerHTML = '<h2>Надбавка за % возврата из базы по сети</h2><p class="sub">Общий показатель сети за месяц, одинаковый у всех консультантов — не привязан к тому, кто именно вернул конкретного клиента.</p>';
+  stepsEditor(baseStepsBox, 'базаСтупени', '% возврата по сети, от', 'Надбавка, п.п.', 'Ниже 1-го порога (0)');
+  host.appendChild(baseStepsBox);
+
   var checkBox = document.createElement('div'); checkBox.className = 'section';
-  checkBox.innerHTML = '<h2>Ограничитель по среднему чеку</h2><p class="sub">Не отдельная премия — урезает премию за план, если чек ниже порога.</p>';
+  checkBox.innerHTML = '<h2>Ограничитель по среднему чеку</h2><p class="sub">Не отдельная премия — урезает итоговую премию, если чек ниже порога.</p>';
   normRow(checkBox, 'Плановый средний чек', '', ['чек', 'план'], defaults.чек.план, '₽');
   normRow(checkBox, 'Порог чека', 'ниже этой % от планового чека — премия урезается', ['чек', 'порогДоли'], defaults.чек.порогДоли, '%');
   normRow(checkBox, 'Урезание премии', 'до какой % от расчётной премии урезаем при провале чека', ['чек', 'урезаниеДо'], defaults.чек.урезаниеДо, '%');

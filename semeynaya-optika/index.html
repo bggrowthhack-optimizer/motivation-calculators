@@ -22,40 +22,48 @@
   function pct(x) { return (Math.round(x * 1000) / 10).toString().replace('.', ',') + '%'; }
   function round1(x) { return Math.round(x * 10) / 10; }
 
-  function weightedPct(s) {
-    var weighted = s.revenueRegular + s.revenueBase * N.весБазы;
-    return s.planRevenue > 0 ? (weighted / s.planRevenue * 100) : 0;
-  }
-  function plainPct(s) {
-    var plain = s.revenueRegular + s.revenueBase;
-    return s.planRevenue > 0 ? (plain / s.planRevenue * 100) : 0;
-  }
-  function realRevenue(s) { return s.revenueRegular + s.revenueBase; }
+  function planPct(s) { return s.planRevenue > 0 ? (s.revenue / s.planRevenue * 100) : 0; }
   function checkPct(s) { return N.чек.план > 0 ? (s.factCheck / N.чек.план * 100) : 100; }
   function checkCutApplied(s) { return checkPct(s) < N.чек.порогДоли; }
   function checkCutMultiplier(s) { return checkCutApplied(s) ? (N.чек.урезаниеДо / 100) : 1; }
 
-  // Подсказка под полем «выручка из базы» — сколько ещё нужно, чтобы допрыгнуть
-  // до следующей ступени грейда, и сколько это денег.
+  function totalRate(s) {
+    return API.gradeRate(N.грейды, planPct(s)) + API.gradeRate(N.базаСтупени, s.reactivationPct);
+  }
+
+  // Подсказка под полем «личная выручка» — сколько ещё нужно до следующей
+  // ступени грейда и сколько это денег.
   function gradeHint(s) {
-    var wp = weightedPct(s);
-    var cur = API.gradeRate(N.грейды, wp);
-    var ng = API.nextGrade(N.грейды, wp);
+    var pp = planPct(s);
+    var cur = API.gradeRate(N.грейды, pp);
+    var ng = API.nextGrade(N.грейды, pp);
     if (!ng) {
-      return 'Взвешенный план уже в верхней ступени — ставка <span class="mono">' + pct(cur) + '</span>.';
+      return 'Личный план уже в верхней ступени — грейд <span class="mono">' + pct(cur) + '</span>.';
     }
-    var neededWeighted = Math.max(0, (ng.порог - wp) / 100 * s.planRevenue);
-    var neededBase = N.весБазы > 0 ? neededWeighted / N.весБазы : 0;
-    var realAfter = realRevenue(s) + neededBase;
-    var jump = (ng.ставка - cur) * realAfter * checkCutMultiplier(s);
+    var neededRevenue = Math.max(0, (ng.порог - pp) / 100 * s.planRevenue);
+    var jump = (ng.ставка - cur) * (s.revenue + neededRevenue) * checkCutMultiplier(s);
     return 'До ступени <span class="mono">' + ng.порог + '%</span> не хватает <span class="mono">' +
-      fmtMoney(neededBase) + '</span> выручки из базы — ставка вырастет с <span class="mono">' + pct(cur) +
+      fmtMoney(neededRevenue) + '</span> личной выручки — грейд вырастет с <span class="mono">' + pct(cur) +
       '</span> до <span class="mono">' + pct(ng.ставка) + '</span>, это ещё <span class="mono">+' +
       fmtMoney(jump) + '/мес</span>.';
   }
 
-  // Подсказка под полем «средний чек» — далеко ли до порога, при котором
-  // снимается урезание премии.
+  // Подсказка под полем «% возврата из базы» — это общий показатель сети, не
+  // личный, поэтому подсказка говорит «у всех», а не «у тебя».
+  function baseHint(s) {
+    var cur = API.gradeRate(N.базаСтупени, s.reactivationPct);
+    var ng = API.nextGrade(N.базаСтупени, s.reactivationPct);
+    if (!ng) {
+      return 'Верхняя ступень — надбавка <span class="mono">+' + pct(cur) + '</span> у всех консультантов.';
+    }
+    var gap = ng.порог - s.reactivationPct;
+    var jump = (ng.ставка - cur) * s.revenue * checkCutMultiplier(s);
+    return 'Это общий показатель сети, не личный. До ступени <span class="mono">' + ng.порог + '%</span> не хватает <span class="mono">' +
+      round1(gap) + ' п.п.</span> возврата из базы — тогда у всех надбавка вырастет до <span class="mono">+' + pct(ng.ставка) +
+      '</span>, у тебя это ещё <span class="mono">+' + fmtMoney(jump) + '/мес</span>.';
+  }
+
+  // Подсказка под полем «средний чек».
   function checkHint(s) {
     var cp = checkPct(s);
     if (cp >= N.чек.порогДоли) {
@@ -63,20 +71,18 @@
     }
     var neededCheck = N.чек.план * N.чек.порогДоли / 100;
     var gap = neededCheck - s.factCheck;
-    var wp = weightedPct(s);
-    var rate = API.gradeRate(N.грейды, wp);
-    var lost = rate * realRevenue(s) * (1 - N.чек.урезаниеДо / 100);
+    var rate = totalRate(s);
+    var lost = rate * s.revenue * (1 - N.чек.урезаниеДо / 100);
     return 'Чек ниже порога — премия урезана до <span class="mono">' + N.чек.урезаниеДо + '%</span>. Не хватает <span class="mono">' +
       fmtMoney(gap) + '</span> до <span class="mono">' + fmtMoney(neededCheck) + '</span> — это вернёт <span class="mono">+' + fmtMoney(lost) + '/мес</span>.';
   }
 
-  function gradeFootnote() {
-    var steps = N.грейды.map(function (g, i) {
-      if (i === 0) return 'меньше ' + (N.грейды[1] ? N.грейды[1].порог : 100) + '% — ' + pct(g.ставка);
-      if (!N.грейды[i + 1]) return 'от ' + g.порог + '% и выше — ' + pct(g.ставка);
-      return g.порог + '–' + (N.грейды[i + 1].порог - 1) + '% — ' + pct(g.ставка);
-    });
-    return '<strong>Процент с продаж по взвешенному выполнению плана:</strong> ' + steps.join('; ') + '.';
+  function stepsFootnote(ступени, fmtStep) {
+    return ступени.map(function (g, i) {
+      if (i === 0) return 'меньше ' + (ступени[1] ? ступени[1].порог : 100) + '% — ' + fmtStep(g.ставка);
+      if (!ступени[i + 1]) return 'от ' + g.порог + '% и выше — ' + fmtStep(g.ставка);
+      return g.порог + '–' + (ступени[i + 1].порог - 1) + '% — ' + fmtStep(g.ставка);
+    }).join('; ');
   }
 
   var role = {
@@ -85,20 +91,27 @@
     groups: [
       {
         title: 'План и выручка',
-        note: 'Выручка от клиентов, которых вернули из базы (не было дольше 12 месяцев), считается в план с весом ×' + N.весБазы + ' — она тяжелее обычной продажи, но деньги всё равно считаются от реальной суммы.',
+        note: 'Ставка грейда зависит от твоей личной выручки относительно твоего личного плана.',
         fields: [
-          { id: 'planRevenue', label: 'План выручки на месяц', unit: 'money', key: true,
-            min: 200000, max: 2000000, step: 50000, default: 1000000 },
-          { id: 'revenueRegular', label: 'Выручка от обычных заказов (факт)', unit: 'money', key: true,
-            min: 0, max: 2000000, step: 10000, default: 700000 },
-          { id: 'revenueBase', label: 'Выручка от клиентов «из базы» (факт)', unit: 'money', key: true,
-            min: 0, max: 500000, step: 5000, default: 90000,
-            marginal: function (s) { return gradeHint(s); } }
+          { id: 'planRevenue', label: 'Личный план на месяц', unit: 'money', key: true,
+            min: 200000, max: 2000000, step: 50000, default: 1000000,
+            marginal: function (s) { return gradeHint(s); } },
+          { id: 'revenue', label: 'Личная выручка (факт)', unit: 'money', key: true,
+            min: 0, max: 2000000, step: 10000, default: 790000 }
+        ]
+      },
+      {
+        title: 'Работа сети с базой',
+        note: 'Общий показатель всей сети за месяц, не личный — но двигает ставку каждому консультанту сразу, когда база в целом работает лучше.',
+        fields: [
+          { id: 'reactivationPct', label: '% клиентов, вернувшихся из базы за месяц (по сети)', unit: 'percent', key: true,
+            min: 0, max: 30, step: 0.5, default: 9,
+            marginal: function (s) { return baseHint(s); } }
         ]
       },
       {
         title: 'Средний чек',
-        note: 'Ограничитель, не отдельная премия: низкий чек урезает премию за план.',
+        note: 'Ограничитель, не отдельная премия: низкий чек урезает итоговую премию.',
         fields: [
           { id: 'factCheck', label: 'Средний чек (факт)', unit: 'money', key: true,
             min: 2000, max: 15000, step: 100, default: 5500,
@@ -107,24 +120,22 @@
       }
     ],
     compute: function (s) {
-      var wp = weightedPct(s);
-      var pp = plainPct(s);
-      var rate = API.gradeRate(N.грейды, wp);
-      var plainRate = API.gradeRate(N.грейды, pp);
-      var real = realRevenue(s);
+      var pp = planPct(s);
+      var gradeRate = API.gradeRate(N.грейды, pp);
+      var baseBonus = API.gradeRate(N.базаСтупени, s.reactivationPct);
+      var rate = gradeRate + baseBonus;
       var cutMult = checkCutMultiplier(s);
 
-      var grossBonus = rate * real;
+      var grossBonus = rate * s.revenue;
       var bonus = grossBonus * cutMult;
-      var baseUplift = Math.max(0, (rate - plainRate) * real * cutMult);
       var cutLoss = grossBonus - bonus;
 
       var rows = [
         { label: 'Оклад', value: N.оклад },
-        { label: 'Процент с продаж — ' + pct(rate) + ' (взвешенный план ' + round1(wp) + '%)', value: bonus }
+        { label: 'Грейд по личному плану — ' + pct(gradeRate) + ' (план ' + round1(pp) + '%)', value: gradeRate * s.revenue * cutMult }
       ];
-      if (baseUplift > 1) {
-        rows.push({ label: '— из них за счёт работы с базой (вес ×' + N.весБазы + ')', value: baseUplift });
+      if (baseBonus > 0) {
+        rows.push({ label: 'Надбавка за возврат из базы по сети — +' + pct(baseBonus) + ' (сейчас ' + s.reactivationPct + '%)', value: baseBonus * s.revenue * cutMult });
       }
       if (cutLoss > 1) {
         rows.push({ label: '— минус урезание за низкий чек', value: -cutLoss });
@@ -133,26 +144,32 @@
       return {
         rows: rows,
         total: N.оклад + bonus,
-        rate: rate, plainRate: plainRate, weightedPct: wp, plainPct: pp,
-        real: real, cutApplied: checkCutApplied(s), cutLoss: cutLoss
+        rate: rate, gradeRate: gradeRate, baseBonus: baseBonus, planPct: pp,
+        cutApplied: checkCutApplied(s), cutLoss: cutLoss
       };
     },
     tip: function (c, s) {
       var moves = [];
-      var ng = API.nextGrade(N.грейды, c.weightedPct);
+      var ng = API.nextGrade(N.грейды, c.planPct);
       if (ng) {
-        var neededWeighted = Math.max(0, (ng.порог - c.weightedPct) / 100 * s.planRevenue);
-        var neededBase = N.весБазы > 0 ? neededWeighted / N.весБазы : 0;
+        var neededRevenue = Math.max(0, (ng.порог - c.planPct) / 100 * s.planRevenue);
         moves.push({
-          what: 'найти в базе ещё ' + fmtMoney(neededBase) + ' выручки и дойти до ступени ' + ng.порог + '%',
-          money: (ng.ставка - c.rate) * (c.real + neededBase) * checkCutMultiplier(s)
+          what: 'поднять личную выручку до ' + ng.порог + '% плана',
+          money: (ng.ставка - c.gradeRate) * (s.revenue + neededRevenue) * checkCutMultiplier(s)
+        });
+      }
+      var nb = API.nextGrade(N.базаСтупени, s.reactivationPct);
+      if (nb) {
+        moves.push({
+          what: 'чтобы сеть подняла возврат из базы до ' + nb.порог + '%',
+          money: (nb.ставка - c.baseBonus) * s.revenue * checkCutMultiplier(s)
         });
       }
       if (c.cutApplied) {
         moves.push({ what: 'поднять средний чек выше порога и снять урезание премии', money: c.cutLoss });
       }
       if (!moves.length) {
-        return '<strong>Дальше расти в этой модели некуда</strong> — ставка ' + pct(c.rate) + ' уже максимальная, чек в норме. Разве что продавать больше.';
+        return '<strong>Дальше расти в этой модели некуда</strong> — ставка ' + pct(c.rate) + ' уже максимальная, чек в норме.';
       }
       moves.sort(function (a, b) { return b.money - a.money; });
       var m = moves[0];
@@ -165,14 +182,13 @@
     eyebrow: 'Семейная оптика · мотивация консультантов',
     favicon: '👨‍👩‍👧',
     theme: { accent: 'oklch(0.6 0.16 25)', accentDark: 'oklch(0.72 0.14 25)' },
-    lede: 'Зарплата = оклад + процент с продаж по ступени выполнения плана. Выручка от клиентов, которых вернули из базы, весит в плане тяжелее обычной — это самый быстрый способ подняться на следующую ступень. Низкий средний чек урезает премию. Впиши реальные цифры, нажми «Зафиксировать как сейчас» — и смотри, что выгоднее всего подтянуть.',
+    lede: 'Зарплата = оклад + процент с личной выручки. Процент складывается из двух частей: грейда за выполнение личного плана и надбавки за то, как вся сеть работает с базой (возвращает клиентов, которые давно не приходили). Низкий средний чек урезает премию. Впиши реальные цифры, нажми «Зафиксировать как сейчас» — и смотри, что выгоднее всего подтянуть.',
     footnotes: [
-      '<strong>Зарплата = оклад + процент с продаж по ступени выполнения плана, с урезанием за низкий чек.</strong>',
-      'Выручка от клиентов «из базы» считается в план с весом (сейчас ×' + N.весБазы + ') — один рубль такой выручки двигает процент выполнения плана как ' + N.весБазы + ' рубля обычной продажи. Сам бонус при этом считается от реальной заработанной суммы — вес решает только то, в какую ступень грейда попадает консультант, а не то, с какой суммы берутся деньги.',
-      gradeFootnote(),
-      'Средний чек — не отдельная премия, а ограничитель: план ' + fmtMoney(N.чек.план) + '. Если факт ниже ' + N.чек.порогДоли + '% от этой суммы — премия за план урезается до ' + N.чек.урезаниеДо + '% от расчётной, чтобы план нельзя было закрыть одними скидками.',
-      '«Из базы» здесь — не то, что вписывает сам консультант. Это определяет система по истории клиента (нет заказов дольше 12 месяцев) и звонку, зафиксированному в CRM до визита, а не после. Премия закрывается после короткого окна на возвраты товара. Калькулятор этого не проверяет — он считает то, что уже прошло проверку.',
-      '<strong>Это черновик.</strong> Оклад, вес за базу, ступени грейдов и параметры чека — пример для обсуждения с Галиной, точные цифры ещё не утверждены.'
+      '<strong>Зарплата = оклад + % с личной выручки, где % = грейд по личному плану + надбавка за работу сети с базой, с урезанием за низкий чек.</strong>',
+      '<strong>Грейд по личному плану:</strong> ' + stepsFootnote(N.грейды, pct) + '.',
+      '<strong>Надбавка за % возврата из базы по сети</strong> (общий показатель, не личный — считается по всей сети за месяц): ' + stepsFootnote(N.базаСтупени, function (v) { return '+' + pct(v); }) + '. Эта часть одинаковая у всех консультантов сразу — чтобы не спорить, кто именно вернул конкретного клиента: звонил один, а в зале обслужил другой. Если база в целом работает лучше — ставка растёт у всех.',
+      'Средний чек — не отдельная премия, а ограничитель: план ' + fmtMoney(N.чек.план) + '. Если факт ниже ' + N.чек.порогДоли + '% от этой суммы — премия урезается до ' + N.чек.урезаниеДо + '% от расчётной, чтобы план нельзя было закрыть одними скидками.',
+      '<strong>Это черновик.</strong> Оклад, грейды, ступени за возврат из базы и параметры чека — пример для обсуждения с Галиной, точные цифры ещё не утверждены. Отправная точка по базе — её текущая цифра (~9%), ступени поставлены чуть выше.'
     ],
     roles: [role]
   });
