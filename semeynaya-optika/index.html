@@ -119,7 +119,7 @@
         sum: function (s) { var loss = totalRate(s) * s.revenue * (1 - checkCutMultiplier(s)); return loss > 1 ? -loss : 0; },
         fields: [
           { id: 'factCheck', label: 'Твой средний чек', unit: 'money', key: true,
-            min: 2000, max: 15000, step: 100, default: 5500,
+            min: 2000, max: 20000, step: 100, default: 11500,
             marginal: function (s) { return checkHint(s); } }
         ]
       }
