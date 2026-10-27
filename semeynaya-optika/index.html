@@ -26,7 +26,8 @@
   function checkCutMultiplier(s) { return checkCutApplied(s) ? (N.чек.урезаниеДо / 100) : 1; }
 
   function gradeOnlyRate(s) { return API.gradeRate(N.грейды, s.planPct); }
-  function zapisiAdjustment(s) { return s.записиВыполнены ? N.записи.надбавка : -N.записи.надбавка; }
+  function zapisiVypolnena(s) { return s.записиКоличество >= N.записи.норма; }
+  function zapisiAdjustment(s) { return zapisiVypolnena(s) ? N.записи.надбавка : -N.записи.надбавка; }
   function totalRate(s) { return Math.max(0, gradeOnlyRate(s) + zapisiAdjustment(s)); }
 
   // Подсказка под полем «план филиала» — простыми словами, без «п.п.» и «грейда».
@@ -61,14 +62,16 @@
     return 'Каждые +10 000 ₽ твоей выручки — это ещё <span class="mono">+' + fmtMoney(gain) + ' к зарплате</span> (при текущем проценте <span class="mono">' + pct(totalRate(s)) + '</span>).';
   }
 
-  // Подсказка под галочкой «норму выполнила» — что это значит прямо сейчас в рублях.
+  // Подсказка под полем «сколько записала» — прогресс до нормы и эффект в рублях.
   function zapisiHint(s) {
     var effect = N.записи.надбавка * s.revenue * checkCutMultiplier(s);
     var swing = 2 * effect;
-    if (s.записиВыполнены) {
-      return 'Сейчас это даёт тебе <span class="mono">+' + fmtMoney(effect) + ' в месяц</span>. Не выполнишь норму в следующем месяце — вместо этого будет <span class="mono">−' + fmtMoney(effect) + '</span> (разница <span class="mono">' + fmtMoney(swing) + '</span>).';
+    if (zapisiVypolnena(s)) {
+      return 'Норму (<span class="mono">' + N.записи.норма + '</span>) ты выполнила — это даёт тебе <span class="mono">+' + fmtMoney(effect) + ' в месяц</span>. Если в следующем месяце запишешь меньше <span class="mono">' + N.записи.норма + '</span> — вместо этого будет <span class="mono">−' + fmtMoney(effect) + '</span> (разница <span class="mono">' + fmtMoney(swing) + '</span>).';
     }
-    return 'Сейчас из-за этого <span class="mono">−' + fmtMoney(effect) + ' в месяц</span>. Выполнишь норму — вместо этого будет <span class="mono">+' + fmtMoney(effect) + '</span> (разница <span class="mono">' + fmtMoney(swing) + '</span>).';
+    var gap = N.записи.норма - s.записиКоличество;
+    return 'До нормы (<span class="mono">' + N.записи.норма + '</span>) не хватает <span class="mono">' + gap + '</span>. Сейчас из-за этого <span class="mono">−' + fmtMoney(effect) +
+      ' в месяц</span>. Запишешь ещё <span class="mono">' + gap + '</span> — вместо минуса будет <span class="mono">+' + fmtMoney(effect) + '</span> (разница <span class="mono">' + fmtMoney(swing) + '</span>).';
   }
 
   function gradeFootnote() {
@@ -98,9 +101,10 @@
       },
       {
         title: 'Записи из базы',
-        note: 'Сколько клиентов из базы ты сама записала на приём в этом месяце — считается по записям в CRM.',
+        note: 'Норма — ' + N.записи.норма + ' в месяц. Наберёшь норму — процент выше, не наберёшь — ниже. Считается по записям в CRM.',
         fields: [
-          { id: 'записиВыполнены', label: 'Норму выполнила (' + N.записи.норма + ' записей за месяц)', type: 'checkbox', default: false,
+          { id: 'записиКоличество', label: 'Сколько клиентов из базы ты записала на приём в этом месяце', unit: 'count', key: true,
+            min: 0, max: 30, step: 1, default: 10,
             marginal: function (s) { return zapisiHint(s); } }
         ]
       },
@@ -127,7 +131,7 @@
       var rows = [
         { label: 'Оклад', value: N.оклад },
         { label: 'Процент с выручки — ' + pct(gradeRate) + ' (план филиала ' + s.planPct + '%)', value: gradeRate * s.revenue * cutMult },
-        { label: s.записиВыполнены ? 'Прибавка за записи из базы (норма выполнена)' : 'Вычет за записи из базы (норма не выполнена)', value: adj * s.revenue * cutMult }
+        { label: zapisiVypolnena(s) ? 'Прибавка за записи из базы (' + s.записиКоличество + ' из ' + N.записи.норма + ', норма выполнена)' : 'Вычет за записи из базы (' + s.записиКоличество + ' из ' + N.записи.норма + ', не хватило)', value: adj * s.revenue * cutMult }
       ];
       if (cutLoss > 1) {
         rows.push({ label: '— минус за маленький чек', value: -cutLoss });
@@ -148,9 +152,9 @@
           money: (ng.ставка - c.gradeRate) * s.revenue * checkCutMultiplier(s)
         });
       }
-      if (!s.записиВыполнены) {
+      if (!zapisiVypolnena(s)) {
         moves.push({
-          what: 'записать ' + N.записи.норма + ' клиентов из базы (сейчас за это минус, а будет плюс)',
+          what: 'записать ещё ' + (N.записи.норма - s.записиКоличество) + ' клиентов из базы, чтобы дотянуть до нормы ' + N.записи.норма,
           money: 2 * N.записи.надбавка * s.revenue * checkCutMultiplier(s)
         });
       }
