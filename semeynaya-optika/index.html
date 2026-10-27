@@ -90,6 +90,8 @@
       {
         title: 'План и выручка',
         note: 'Твой процент зависит от того, как весь филиал выполнил план — не только от твоих личных продаж. А вот сумма в рублях считается с твоей личной выручки.',
+        collapsible: true,
+        sum: function (s) { return gradeOnlyRate(s) * s.revenue * checkCutMultiplier(s); },
         fields: [
           { id: 'planPct', label: 'Филиал выполнил план продаж на сколько %', unit: 'percent', key: true,
             min: 0, max: 140, step: 1, default: 90,
@@ -102,6 +104,8 @@
       {
         title: 'Записи из базы',
         note: 'Норма — ' + N.записи.норма + ' в месяц. Наберёшь норму — процент выше, не наберёшь — ниже. Считается по записям в CRM.',
+        collapsible: true,
+        sum: function (s) { return zapisiAdjustment(s) * s.revenue * checkCutMultiplier(s); },
         fields: [
           { id: 'записиКоличество', label: 'Сколько клиентов из базы ты записала на приём в этом месяце', unit: 'count', key: true,
             min: 0, max: 30, step: 1, default: 10,
@@ -111,6 +115,8 @@
       {
         title: 'Средний чек',
         note: 'Если чек маленький, премию немного срежут — чтобы план не закрывали одними скидками.',
+        collapsible: true,
+        sum: function (s) { var loss = totalRate(s) * s.revenue * (1 - checkCutMultiplier(s)); return loss > 1 ? -loss : 0; },
         fields: [
           { id: 'factCheck', label: 'Твой средний чек', unit: 'money', key: true,
             min: 2000, max: 15000, step: 100, default: 5500,
