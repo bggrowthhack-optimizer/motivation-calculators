@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Калькулятор зарплаты РОПа — шаблон</title>
+<title>Калькулятор зарплаты РОПа — прототип для Оптики Вижу</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -143,14 +143,14 @@
 
   MotivationCalculator.init({
     title: 'Калькулятор зарплаты РОПа',
-    eyebrow: 'Шаблон · мотивация руководителя отдела продаж',
+    eyebrow: 'Прототип для Оптики Вижу · мотивация РОПа',
     favicon: '📈',
     lede: 'Из чего складывается зарплата: оклад + премия за план куста + премии за KPI. Вилка — от ' + fmtMoney(minTotal) + ' до ' + fmtMoney(maxTotal) + '. Впишите показатели и сразу увидите сумму. Нажмите «Зафиксировать как сейчас», чтобы увидеть, сколько можно прибавить.',
     footnotes: [
       '<strong>Зарплата = оклад + KPI-часть.</strong> Оклад ' + fmtMoney(N.оклад) + ' выплачивается всегда. KPI-часть — премия за план куста плюс премии за средний чек и конверсию, но не меньше ' + fmtMoney(N.минималкаKpi) + ' (гарантированный минимум). Суммы фиксированные и не зависят от выручки, поэтому итог всегда в вилке ' + fmtMoney(minTotal) + ' — ' + fmtMoney(maxTotal) + '.',
       stepsFootnote(),
       '<strong>KPI:</strong> средний чек — норма ' + fmtMoney(N.kpiЧек.план) + ', премия ' + fmtMoney(N.kpiЧек.премия) + '; конверсия — норма ' + N.kpiКонверсия.план + '%, премия ' + fmtMoney(N.kpiКонверсия.премия) + '. Выплата целиком, если факт не ниже нормы.',
-      '<strong>Это обезличенный черновик.</strong> Оклад, нормы чека и конверсии, вилка и гарантированный минимум заданы; суммы ступеней плана и размер KPI-премий подобраны под вилку и не согласованы.'
+      '<strong>Это прототип для Оптики Вижу.</strong> Оклад, нормы чека и конверсии, вилка и гарантированный минимум заданы; суммы ступеней плана и размер KPI-премий подобраны под вилку и не согласованы.'
     ],
     roles: [role]
   });
