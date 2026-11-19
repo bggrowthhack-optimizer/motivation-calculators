@@ -20,107 +20,98 @@
   var API = window.ROP_NORMS;
   var N = API.load();
 
-  function pct(x) { return (Math.round(x * 10000) / 100).toString().replace('.', ',') + '%'; }
-
-  function gradeRate(s) { return API.gradeRate(N.грейды, s.planPct); }
-  function percentPart(s) { return gradeRate(s) * s.revenue; }
+  function planPart(s) { return API.stepAmount(N.ступени, s.planPct); }
   function checkDone(s) { return s.factCheck >= N.kpiЧек.план; }
   function convDone(s) { return s.factConv >= N.kpiКонверсия.план; }
   function checkPart(s) { return checkDone(s) ? N.kpiЧек.премия : 0; }
   function convPart(s) { return convDone(s) ? N.kpiКонверсия.премия : 0; }
+  function total(s) { return N.оклад + planPart(s) + checkPart(s) + convPart(s); }
 
-  function gradeHint(s) {
-    var cur = gradeRate(s);
-    var ng = API.nextGrade(N.грейды, s.planPct);
-    if (!ng) {
-      return 'Куст в самой высокой ступени плана — ставка максимальная, <span class="mono">' + pct(cur) + '</span>.';
+  function planHint(s) {
+    var cur = planPart(s);
+    var ns = API.nextStep(N.ступени, s.planPct);
+    if (!ns) {
+      return 'Куст в самой высокой ступени плана — премия максимальная, <span class="mono">' + fmtMoney(cur) + '</span>.';
     }
-    var jump = (ng.ставка - cur) * s.revenue;
-    return 'Сейчас план куста выполнен на <span class="mono">' + s.planPct + '%</span>. При <span class="mono">' + ng.порог +
-      '%</span> ставка вырастет с <span class="mono">' + pct(cur) + '</span> до <span class="mono">' + pct(ng.ставка) +
-      '</span> — это <span class="mono">+' + fmtMoney(jump) + ' в месяц</span>.';
-  }
-
-  function revenueHint(s) {
-    var gain = gradeRate(s) * 100000;
-    return 'Каждые +100 000 ₽ выручки куста — это <span class="mono">+' + fmtMoney(gain) + ' к зарплате</span> при ставке <span class="mono">' + pct(gradeRate(s)) + '</span>.';
+    return 'Сейчас план куста выполнен на <span class="mono">' + s.planPct + '%</span>. При <span class="mono">' + ns.порог +
+      '%</span> премия вырастет с <span class="mono">' + fmtMoney(cur) + '</span> до <span class="mono">' + fmtMoney(ns.сумма) +
+      '</span> — это <span class="mono">+' + fmtMoney(ns.сумма - cur) + ' в месяц</span>.';
   }
 
   function checkHint(s) {
     if (checkDone(s)) {
-      return 'Плановый чек (<span class="mono">' + fmtMoney(N.kpiЧек.план) + '</span>) выполнен — премия <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
+      return 'Норма среднего чека (<span class="mono">' + fmtMoney(N.kpiЧек.план) + '</span>) выполнена — премия <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
     }
-    return 'До планового чека не хватает <span class="mono">' + fmtMoney(N.kpiЧек.план - s.factCheck) + '</span>. Дотянете — <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
+    return 'До нормы среднего чека не хватает <span class="mono">' + fmtMoney(N.kpiЧек.план - s.factCheck) + '</span>. Дотянете — <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
   }
 
   function convHint(s) {
     if (convDone(s)) {
-      return 'Плановая конверсия (<span class="mono">' + N.kpiКонверсия.план + '%</span>) выполнена — премия <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
+      return 'Норма конверсии (<span class="mono">' + N.kpiКонверсия.план + '%</span>) выполнена — премия <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
     }
     var gap = Math.round((N.kpiКонверсия.план - s.factConv) * 10) / 10;
-    return 'До плановой конверсии не хватает <span class="mono">' + gap + ' п.п.</span> Дотянете — <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
+    return 'До нормы конверсии не хватает <span class="mono">' + gap + ' п.п.</span> Дотянете — <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
   }
 
-  function gradeFootnote() {
-    var steps = N.грейды.map(function (g, i) {
-      if (i === 0) return 'меньше ' + (N.грейды[1] ? N.грейды[1].порог : 100) + '% — ' + pct(g.ставка);
-      if (!N.грейды[i + 1]) return 'от ' + g.порог + '% и выше — ' + pct(g.ставка);
-      return g.порог + '–' + (N.грейды[i + 1].порог - 1) + '% — ' + pct(g.ставка);
+  function stepsFootnote() {
+    var steps = N.ступени.map(function (g, i) {
+      if (i === 0) return 'меньше ' + (N.ступени[1] ? N.ступени[1].порог : 100) + '% — ' + fmtMoney(g.сумма);
+      if (!N.ступени[i + 1]) return 'от ' + g.порог + '% и выше — ' + fmtMoney(g.сумма);
+      return g.порог + '–' + (N.ступени[i + 1].порог - 1) + '% — ' + fmtMoney(g.сумма);
     });
-    return '<strong>Процент от выручки куста по выполнению плана куста:</strong> ' + steps.join('; ') + '.';
+    return '<strong>Премия за выполнение плана куста:</strong> ' + steps.join('; ') + '.';
   }
+
+  var minTotal = N.оклад + N.ступени[0].сумма;
+  var maxTotal = N.оклад + N.ступени[N.ступени.length - 1].сумма + N.kpiЧек.премия + N.kpiКонверсия.премия;
 
   var role = {
     id: 'роп',
     label: 'РОП',
     groups: [
       {
-        title: 'План и выручка куста',
-        note: 'Ставка зависит от того, как куст выполнил план. Деньги считаются с выручки куста.',
+        title: 'План куста',
+        note: 'Премия зависит от того, как куст выполнил план продаж.',
         collapsible: true,
-        sum: function (s) { return percentPart(s); },
+        sum: function (s) { return planPart(s); },
         fields: [
           { id: 'planPct', label: 'Куст выполнил план продаж на сколько %', unit: 'percent', key: true,
             min: 0, max: 140, step: 1, default: 100,
-            marginal: function (s) { return gradeHint(s); } },
-          { id: 'revenue', label: 'Выручка куста за месяц', unit: 'money', key: true,
-            min: 0, max: 20000000, step: 100000, default: 8000000,
-            marginal: function (s) { return revenueHint(s); } }
+            marginal: function (s) { return planHint(s); } }
         ]
       },
       {
         title: 'KPI куста',
-        note: 'Каждый KPI бинарный: план выполнен — премия, не выполнен — ноль.',
+        note: 'Каждый KPI бинарный: норма выполнена — премия, не выполнена — ноль.',
         collapsible: true,
         sum: function (s) { return checkPart(s) + convPart(s); },
         fields: [
           { id: 'factCheck', label: 'Средний чек куста', unit: 'money', key: true,
-            min: 2000, max: 25000, step: 100, default: 12000,
+            min: 5000, max: 40000, step: 500, default: 20000,
             marginal: function (s) { return checkHint(s); } },
-          { id: 'factConv', label: 'Конверсия рецепт → заказ', unit: 'percent', key: true,
-            min: 0, max: 100, step: 1, default: 40,
+          { id: 'factConv', label: 'Конверсия', unit: 'percent', key: true,
+            min: 0, max: 100, step: 1, default: 75,
             marginal: function (s) { return convHint(s); } }
         ]
       }
     ],
     compute: function (s) {
-      var rate = gradeRate(s);
       var rows = [
         { label: 'Оклад', value: N.оклад },
-        { label: 'Процент с выручки куста — ' + pct(rate) + ' (план куста ' + s.planPct + '%)', value: percentPart(s) },
+        { label: 'Премия за план куста (' + s.planPct + '%)', value: planPart(s) },
         { label: 'KPI «Средний чек»' + (checkDone(s) ? '' : ' (не выполнен)'), value: checkPart(s) },
         { label: 'KPI «Конверсия»' + (convDone(s) ? '' : ' (не выполнен)'), value: convPart(s) }
       ];
-      return { rows: rows, total: N.оклад + percentPart(s) + checkPart(s) + convPart(s), rate: rate };
+      return { rows: rows, total: total(s) };
     },
     tip: function (c, s) {
       var moves = [];
-      var ng = API.nextGrade(N.грейды, s.planPct);
-      if (ng) moves.push({ what: 'подтянуть план куста до ' + ng.порог + '%', money: (ng.ставка - c.rate) * s.revenue });
-      if (!checkDone(s)) moves.push({ what: 'довести средний чек до плана ' + fmtMoney(N.kpiЧек.план), money: N.kpiЧек.премия });
-      if (!convDone(s)) moves.push({ what: 'довести конверсию до плана ' + N.kpiКонверсия.план + '%', money: N.kpiКонверсия.премия });
+      var ns = API.nextStep(N.ступени, s.planPct);
+      if (ns) moves.push({ what: 'подтянуть план куста до ' + ns.порог + '%', money: ns.сумма - planPart(s) });
+      if (!checkDone(s)) moves.push({ what: 'довести средний чек до нормы ' + fmtMoney(N.kpiЧек.план), money: N.kpiЧек.премия });
+      if (!convDone(s)) moves.push({ what: 'довести конверсию до нормы ' + N.kpiКонверсия.план + '%', money: N.kpiКонверсия.премия });
       if (!moves.length) {
-        return '<strong>Дальше расти в этой модели некуда</strong> — ставка максимальная, оба KPI выполнены.';
+        return '<strong>Дальше расти в этой модели некуда</strong> — премия за план максимальная, оба KPI выполнены.';
       }
       moves.sort(function (a, b) { return b.money - a.money; });
       var m = moves[0];
@@ -132,12 +123,12 @@
     title: 'Калькулятор зарплаты РОПа',
     eyebrow: 'Шаблон · мотивация руководителя отдела продаж',
     favicon: '📈',
-    lede: 'Из чего складывается зарплата: оклад + процент от выручки куста + премии за KPI. Впишите показатели и сразу увидите сумму. Нажмите «Зафиксировать как сейчас», чтобы увидеть, сколько можно прибавить.',
+    lede: 'Из чего складывается зарплата: оклад + премия за план куста + премии за KPI. Вилка — от ' + fmtMoney(minTotal) + ' до ' + fmtMoney(maxTotal) + '. Впишите показатели и сразу увидите сумму. Нажмите «Зафиксировать как сейчас», чтобы увидеть, сколько можно прибавить.',
     footnotes: [
-      '<strong>Зарплата = оклад + процент от выручки куста + KPI-премии.</strong> Процент зависит от выполнения плана куста; премии за средний чек и конверсию выплачиваются целиком, если план по показателю выполнен.',
-      gradeFootnote(),
-      '<strong>KPI:</strong> средний чек — план ' + fmtMoney(N.kpiЧек.план) + ', премия ' + fmtMoney(N.kpiЧек.премия) + '; конверсия рецепт → заказ — план ' + N.kpiКонверсия.план + '%, премия ' + fmtMoney(N.kpiКонверсия.премия) + '.',
-      '<strong>Это обезличенный черновик.</strong> Оклад, ставки, планы и премии — условные числа для старта обсуждения, не политика конкретной компании.'
+      '<strong>Зарплата = оклад + премия за план куста + KPI-премии.</strong> Оклад ' + fmtMoney(N.оклад) + ' выплачивается всегда. Суммы фиксированные и не зависят от выручки, поэтому итог всегда в вилке ' + fmtMoney(minTotal) + ' — ' + fmtMoney(maxTotal) + '.',
+      stepsFootnote(),
+      '<strong>KPI:</strong> средний чек — норма ' + fmtMoney(N.kpiЧек.план) + ', премия ' + fmtMoney(N.kpiЧек.премия) + '; конверсия — норма ' + N.kpiКонверсия.план + '%, премия ' + fmtMoney(N.kpiКонверсия.премия) + '. Выплата целиком, если факт не ниже нормы.',
+      '<strong>Это обезличенный черновик.</strong> Нормы чека и конверсии и вилка зарплаты заданы; суммы ступеней плана и размер премий подобраны под вилку и не согласованы.'
     ],
     roles: [role]
   });
