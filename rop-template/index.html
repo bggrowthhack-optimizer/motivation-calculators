@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Калькулятор зарплаты РОПа — шаблон</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/engine.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="./norms.js"></script>
+<script src="../assets/engine.js"></script>
+<script>
+(function () {
+  var fmtMoney = MotivationCalculator.util.fmtMoney;
+  var API = window.ROP_NORMS;
+  var N = API.load();
+
+  function pct(x) { return (Math.round(x * 10000) / 100).toString().replace('.', ',') + '%'; }
+
+  function gradeRate(s) { return API.gradeRate(N.грейды, s.planPct); }
+  function percentPart(s) { return gradeRate(s) * s.revenue; }
+  function checkDone(s) { return s.factCheck >= N.kpiЧек.план; }
+  function convDone(s) { return s.factConv >= N.kpiКонверсия.план; }
+  function checkPart(s) { return checkDone(s) ? N.kpiЧек.премия : 0; }
+  function convPart(s) { return convDone(s) ? N.kpiКонверсия.премия : 0; }
+
+  function gradeHint(s) {
+    var cur = gradeRate(s);
+    var ng = API.nextGrade(N.грейды, s.planPct);
+    if (!ng) {
+      return 'Куст в самой высокой ступени плана — ставка максимальная, <span class="mono">' + pct(cur) + '</span>.';
+    }
+    var jump = (ng.ставка - cur) * s.revenue;
+    return 'Сейчас план куста выполнен на <span class="mono">' + s.planPct + '%</span>. При <span class="mono">' + ng.порог +
+      '%</span> ставка вырастет с <span class="mono">' + pct(cur) + '</span> до <span class="mono">' + pct(ng.ставка) +
+      '</span> — это <span class="mono">+' + fmtMoney(jump) + ' в месяц</span>.';
+  }
+
+  function revenueHint(s) {
+    var gain = gradeRate(s) * 100000;
+    return 'Каждые +100 000 ₽ выручки куста — это <span class="mono">+' + fmtMoney(gain) + ' к зарплате</span> при ставке <span class="mono">' + pct(gradeRate(s)) + '</span>.';
+  }
+
+  function checkHint(s) {
+    if (checkDone(s)) {
+      return 'Плановый чек (<span class="mono">' + fmtMoney(N.kpiЧек.план) + '</span>) выполнен — премия <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
+    }
+    return 'До планового чека не хватает <span class="mono">' + fmtMoney(N.kpiЧек.план - s.factCheck) + '</span>. Дотянете — <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
+  }
+
+  function convHint(s) {
+    if (convDone(s)) {
+      return 'Плановая конверсия (<span class="mono">' + N.kpiКонверсия.план + '%</span>) выполнена — премия <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
+    }
+    var gap = Math.round((N.kpiКонверсия.план - s.factConv) * 10) / 10;
+    return 'До плановой конверсии не хватает <span class="mono">' + gap + ' п.п.</span> Дотянете — <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
+  }
+
+  function gradeFootnote() {
+    var steps = N.грейды.map(function (g, i) {
+      if (i === 0) return 'меньше ' + (N.грейды[1] ? N.грейды[1].порог : 100) + '% — ' + pct(g.ставка);
+      if (!N.грейды[i + 1]) return 'от ' + g.порог + '% и выше — ' + pct(g.ставка);
+      return g.порог + '–' + (N.грейды[i + 1].порог - 1) + '% — ' + pct(g.ставка);
+    });
+    return '<strong>Процент от выручки куста по выполнению плана куста:</strong> ' + steps.join('; ') + '.';
+  }
+
+  var role = {
+    id: 'роп',
+    label: 'РОП',
+    groups: [
+      {
+        title: 'План и выручка куста',
+        note: 'Ставка зависит от того, как куст выполнил план. Деньги считаются с выручки куста.',
+        collapsible: true,
+        sum: function (s) { return percentPart(s); },
+        fields: [
+          { id: 'planPct', label: 'Куст выполнил план продаж на сколько %', unit: 'percent', key: true,
+            min: 0, max: 140, step: 1, default: 100,
+            marginal: function (s) { return gradeHint(s); } },
+          { id: 'revenue', label: 'Выручка куста за месяц', unit: 'money', key: true,
+            min: 0, max: 20000000, step: 100000, default: 8000000,
+            marginal: function (s) { return revenueHint(s); } }
+        ]
+      },
+      {
+        title: 'KPI куста',
+        note: 'Каждый KPI бинарный: план выполнен — премия, не выполнен — ноль.',
+        collapsible: true,
+        sum: function (s) { return checkPart(s) + convPart(s); },
+        fields: [
+          { id: 'factCheck', label: 'Средний чек куста', unit: 'money', key: true,
+            min: 2000, max: 25000, step: 100, default: 12000,
+            marginal: function (s) { return checkHint(s); } },
+          { id: 'factConv', label: 'Конверсия рецепт → заказ', unit: 'percent', key: true,
+            min: 0, max: 100, step: 1, default: 40,
+            marginal: function (s) { return convHint(s); } }
+        ]
+      }
+    ],
+    compute: function (s) {
+      var rate = gradeRate(s);
+      var rows = [
+        { label: 'Оклад', value: N.оклад },
+        { label: 'Процент с выручки куста — ' + pct(rate) + ' (план куста ' + s.planPct + '%)', value: percentPart(s) },
+        { label: 'KPI «Средний чек»' + (checkDone(s) ? '' : ' (не выполнен)'), value: checkPart(s) },
+        { label: 'KPI «Конверсия»' + (convDone(s) ? '' : ' (не выполнен)'), value: convPart(s) }
+      ];
+      return { rows: rows, total: N.оклад + percentPart(s) + checkPart(s) + convPart(s), rate: rate };
+    },
+    tip: function (c, s) {
+      var moves = [];
+      var ng = API.nextGrade(N.грейды, s.planPct);
+      if (ng) moves.push({ what: 'подтянуть план куста до ' + ng.порог + '%', money: (ng.ставка - c.rate) * s.revenue });
+      if (!checkDone(s)) moves.push({ what: 'довести средний чек до плана ' + fmtMoney(N.kpiЧек.план), money: N.kpiЧек.премия });
+      if (!convDone(s)) moves.push({ what: 'довести конверсию до плана ' + N.kpiКонверсия.план + '%', money: N.kpiКонверсия.премия });
+      if (!moves.length) {
+        return '<strong>Дальше расти в этой модели некуда</strong> — ставка максимальная, оба KPI выполнены.';
+      }
+      moves.sort(function (a, b) { return b.money - a.money; });
+      var m = moves[0];
+      return '<strong>Быстрее всего прибавить:</strong> ' + m.what + ' — это примерно <strong>+' + fmtMoney(m.money) + ' в месяц</strong>.';
+    }
+  };
+
+  MotivationCalculator.init({
+    title: 'Калькулятор зарплаты РОПа',
+    eyebrow: 'Шаблон · мотивация руководителя отдела продаж',
+    favicon: '📈',
+    lede: 'Из чего складывается зарплата: оклад + процент от выручки куста + премии за KPI. Впишите показатели и сразу увидите сумму. Нажмите «Зафиксировать как сейчас», чтобы увидеть, сколько можно прибавить.',
+    footnotes: [
+      '<strong>Зарплата = оклад + процент от выручки куста + KPI-премии.</strong> Процент зависит от выполнения плана куста; премии за средний чек и конверсию выплачиваются целиком, если план по показателю выполнен.',
+      gradeFootnote(),
+      '<strong>KPI:</strong> средний чек — план ' + fmtMoney(N.kpiЧек.план) + ', премия ' + fmtMoney(N.kpiЧек.премия) + '; конверсия рецепт → заказ — план ' + N.kpiКонверсия.план + '%, премия ' + fmtMoney(N.kpiКонверсия.премия) + '.',
+      '<strong>Это обезличенный черновик.</strong> Оклад, ставки, планы и премии — условные числа для старта обсуждения, не политика конкретной компании.'
+    ],
+    roles: [role]
+  });
+})();
+</script>
+</body>
+</html>
