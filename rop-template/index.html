@@ -25,7 +25,19 @@
   function convDone(s) { return s.factConv >= N.kpiКонверсия.план; }
   function checkPart(s) { return checkDone(s) ? N.kpiЧек.премия : 0; }
   function convPart(s) { return convDone(s) ? N.kpiКонверсия.премия : 0; }
-  function total(s) { return N.оклад + planPart(s) + checkPart(s) + convPart(s); }
+  function kpiSum(s) { return planPart(s) + checkPart(s) + convPart(s); }
+  function topUp(s) { return Math.max(0, N.минималкаKpi - kpiSum(s)); }
+  function total(s) { return N.оклад + kpiSum(s) + topUp(s); }
+
+  // Реальная прибавка к итогу, если подставить значения patch (с учётом минимума).
+  function gain(s, patch) {
+    return total(Object.assign({}, s, patch)) - total(s);
+  }
+
+  function gainText(g) {
+    if (g > 0) return 'Дотянете — <span class="mono">+' + fmtMoney(g) + '</span>.';
+    return 'Сейчас к зарплате это ничего не добавит: сумма KPI ещё ниже гарантированного минимума (<span class="mono">' + fmtMoney(N.минималкаKpi) + '</span>).';
+  }
 
   function planHint(s) {
     var cur = planPart(s);
@@ -33,24 +45,27 @@
     if (!ns) {
       return 'Куст в самой высокой ступени плана — премия максимальная, <span class="mono">' + fmtMoney(cur) + '</span>.';
     }
+    var g = gain(s, { planPct: ns.порог });
     return 'Сейчас план куста выполнен на <span class="mono">' + s.planPct + '%</span>. При <span class="mono">' + ns.порог +
-      '%</span> премия вырастет с <span class="mono">' + fmtMoney(cur) + '</span> до <span class="mono">' + fmtMoney(ns.сумма) +
-      '</span> — это <span class="mono">+' + fmtMoney(ns.сумма - cur) + ' в месяц</span>.';
+      '%</span> премия вырастет с <span class="mono">' + fmtMoney(cur) + '</span> до <span class="mono">' + fmtMoney(ns.сумма) + '</span>. ' +
+      (g > 0 ? 'К зарплате это <span class="mono">+' + fmtMoney(g) + ' в месяц</span>.' : 'К зарплате пока ничего не добавит: сумма KPI ниже гарантированного минимума (<span class="mono">' + fmtMoney(N.минималкаKpi) + '</span>).');
   }
 
   function checkHint(s) {
     if (checkDone(s)) {
-      return 'Норма среднего чека (<span class="mono">' + fmtMoney(N.kpiЧек.план) + '</span>) выполнена — премия <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
+      return 'Норма среднего чека (<span class="mono">' + fmtMoney(N.kpiЧек.план) + '</span>) выполнена — премия <span class="mono">' + fmtMoney(N.kpiЧек.премия) + '</span>.';
     }
-    return 'До нормы среднего чека не хватает <span class="mono">' + fmtMoney(N.kpiЧек.план - s.factCheck) + '</span>. Дотянете — <span class="mono">+' + fmtMoney(N.kpiЧек.премия) + '</span>.';
+    return 'До нормы среднего чека не хватает <span class="mono">' + fmtMoney(N.kpiЧек.план - s.factCheck) + '</span>. ' +
+      gainText(gain(s, { factCheck: N.kpiЧек.план }));
   }
 
   function convHint(s) {
     if (convDone(s)) {
-      return 'Норма конверсии (<span class="mono">' + N.kpiКонверсия.план + '%</span>) выполнена — премия <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
+      return 'Норма конверсии (<span class="mono">' + N.kpiКонверсия.план + '%</span>) выполнена — премия <span class="mono">' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
     }
     var gap = Math.round((N.kpiКонверсия.план - s.factConv) * 10) / 10;
-    return 'До нормы конверсии не хватает <span class="mono">' + gap + ' п.п.</span> Дотянете — <span class="mono">+' + fmtMoney(N.kpiКонверсия.премия) + '</span>.';
+    return 'До нормы конверсии не хватает <span class="mono">' + gap + ' п.п.</span> ' +
+      gainText(gain(s, { factConv: N.kpiКонверсия.план }));
   }
 
   function stepsFootnote() {
@@ -62,8 +77,9 @@
     return '<strong>Премия за выполнение плана куста:</strong> ' + steps.join('; ') + '.';
   }
 
-  var minTotal = N.оклад + N.ступени[0].сумма;
-  var maxTotal = N.оклад + N.ступени[N.ступени.length - 1].сумма + N.kpiЧек.премия + N.kpiКонверсия.премия;
+  var minTotal = N.оклад + N.минималкаKpi;
+  var maxTotal = N.оклад + Math.max(N.минималкаKpi,
+    N.ступени[N.ступени.length - 1].сумма + N.kpiЧек.премия + N.kpiКонверсия.премия);
 
   var role = {
     id: 'роп',
@@ -82,7 +98,7 @@
       },
       {
         title: 'KPI куста',
-        note: 'Каждый KPI бинарный: норма выполнена — премия, не выполнена — ноль.',
+        note: 'Каждый KPI бинарный: норма выполнена — премия, не выполнена — ноль. Сумма всех KPI не опускается ниже ' + fmtMoney(N.минималкаKpi) + '.',
         collapsible: true,
         sum: function (s) { return checkPart(s) + convPart(s); },
         fields: [
@@ -102,19 +118,25 @@
         { label: 'KPI «Средний чек»' + (checkDone(s) ? '' : ' (не выполнен)'), value: checkPart(s) },
         { label: 'KPI «Конверсия»' + (convDone(s) ? '' : ' (не выполнен)'), value: convPart(s) }
       ];
+      if (topUp(s) > 0) {
+        rows.push({ label: 'Доплата до гарантированного минимума KPI', value: topUp(s) });
+      }
       return { rows: rows, total: total(s) };
     },
     tip: function (c, s) {
       var moves = [];
       var ns = API.nextStep(N.ступени, s.planPct);
-      if (ns) moves.push({ what: 'подтянуть план куста до ' + ns.порог + '%', money: ns.сумма - planPart(s) });
-      if (!checkDone(s)) moves.push({ what: 'довести средний чек до нормы ' + fmtMoney(N.kpiЧек.план), money: N.kpiЧек.премия });
-      if (!convDone(s)) moves.push({ what: 'довести конверсию до нормы ' + N.kpiКонверсия.план + '%', money: N.kpiКонверсия.премия });
+      if (ns) moves.push({ what: 'подтянуть план куста до ' + ns.порог + '%', money: gain(s, { planPct: ns.порог }) });
+      if (!checkDone(s)) moves.push({ what: 'довести средний чек до нормы ' + fmtMoney(N.kpiЧек.план), money: gain(s, { factCheck: N.kpiЧек.план }) });
+      if (!convDone(s)) moves.push({ what: 'довести конверсию до нормы ' + N.kpiКонверсия.план + '%', money: gain(s, { factConv: N.kpiКонверсия.план }) });
       if (!moves.length) {
         return '<strong>Дальше расти в этой модели некуда</strong> — премия за план максимальная, оба KPI выполнены.';
       }
       moves.sort(function (a, b) { return b.money - a.money; });
       var m = moves[0];
+      if (m.money <= 0) {
+        return '<strong>Пока сумма KPI ниже гарантированного минимума (' + fmtMoney(N.минималкаKpi) + ')</strong> — по одному показателю прибавки нет. Нужно выполнить сразу несколько.';
+      }
       return '<strong>Быстрее всего прибавить:</strong> ' + m.what + ' — это примерно <strong>+' + fmtMoney(m.money) + ' в месяц</strong>.';
     }
   };
@@ -125,10 +147,10 @@
     favicon: '📈',
     lede: 'Из чего складывается зарплата: оклад + премия за план куста + премии за KPI. Вилка — от ' + fmtMoney(minTotal) + ' до ' + fmtMoney(maxTotal) + '. Впишите показатели и сразу увидите сумму. Нажмите «Зафиксировать как сейчас», чтобы увидеть, сколько можно прибавить.',
     footnotes: [
-      '<strong>Зарплата = оклад + премия за план куста + KPI-премии.</strong> Оклад ' + fmtMoney(N.оклад) + ' выплачивается всегда. Суммы фиксированные и не зависят от выручки, поэтому итог всегда в вилке ' + fmtMoney(minTotal) + ' — ' + fmtMoney(maxTotal) + '.',
+      '<strong>Зарплата = оклад + KPI-часть.</strong> Оклад ' + fmtMoney(N.оклад) + ' выплачивается всегда. KPI-часть — премия за план куста плюс премии за средний чек и конверсию, но не меньше ' + fmtMoney(N.минималкаKpi) + ' (гарантированный минимум). Суммы фиксированные и не зависят от выручки, поэтому итог всегда в вилке ' + fmtMoney(minTotal) + ' — ' + fmtMoney(maxTotal) + '.',
       stepsFootnote(),
       '<strong>KPI:</strong> средний чек — норма ' + fmtMoney(N.kpiЧек.план) + ', премия ' + fmtMoney(N.kpiЧек.премия) + '; конверсия — норма ' + N.kpiКонверсия.план + '%, премия ' + fmtMoney(N.kpiКонверсия.премия) + '. Выплата целиком, если факт не ниже нормы.',
-      '<strong>Это обезличенный черновик.</strong> Нормы чека и конверсии и вилка зарплаты заданы; суммы ступеней плана и размер премий подобраны под вилку и не согласованы.'
+      '<strong>Это обезличенный черновик.</strong> Оклад, нормы чека и конверсии, вилка и гарантированный минимум заданы; суммы ступеней плана и размер KPI-премий подобраны под вилку и не согласованы.'
     ],
     roles: [role]
   });
